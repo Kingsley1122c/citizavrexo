@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: nivora-core
+    runtime: node
+    plan: starter
+    region: oregon
+    numInstances: 1
+    buildCommand: npm ci && DATABASE_URL=file:./data/build.db npm run build
+    startCommand: npm run start:production
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_VERSION
+        value: 22.22.0
+      - key: DATABASE_URL
+        value: file:/var/data/nivora.db
+      - key: RECOVERY_CODE_PEPPER
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        value: Nivora Core <no-reply@nivoracore.com>
+      - key: APP_URL
+        value: https://nivoracore.com
+      - key: PROFILE_IMAGE_DIR
+        value: /var/data/profile-images
+      - key: CUSTOMER_SERVICE_EMAIL
+        sync: false
+      - key: EXCHANGE_RATE_PROVIDER
+        value: open_exchange_rates
+      - key: OPEN_EXCHANGE_RATES_APP_ID
+        sync: false
+      - key: EXCHANGE_RATE_TIMEOUT_MS
+        value: 8000
+      - key: EXCHANGE_RATE_MAX_AGE_SECONDS
+        value: 21600
+    disk:
+      name: nivora-data
+      mountPath: /var/data
+      sizeGB: 1

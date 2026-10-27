@@ -1,0 +1,57 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const send = vi.hoisted(() => vi.fn());
+const consumeAuthRateLimit = vi.hoisted(() => vi.fn());
+vi.mock("resend", () => ({
+  Resend: class {
+    emails = { send };
+  },
+}));
+vi.mock("@/lib/auth/rate-limit-service", () => ({ consumeAuthRateLimit }));
+
+import { DailyEmailLimitError, resendEmailTransport } from "./resend-transport";
+
+const message = {
+  to: "recipient@example.test",
+  subject: "Nivora Core test",
+  text: "Safe transactional content.",
+  idempotencyKey: "outbox/test-message",
+};
+
+describe("Resend email transport", () => {
+  beforeEach(() => {
+    vi.stubEnv("RESEND_API_KEY", "test-resend-key");
+    vi.stubEnv("EMAIL_FROM", "Nivora Core <no-reply@nivoracore.com>");
+    send.mockReset();
+    consumeAuthRateLimit.mockReset();
+    consumeAuthRateLimit.mockReturnValue(true);
+  });
+
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("uses the configured sender and provider idempotency key", async () => {
+    send.mockResolvedValueOnce({ data: { id: "provider-message-id" }, error: null });
+    await resendEmailTransport.send(message);
+
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({ from: "Nivora Core <no-reply@nivoracore.com>", to: message.to, subject: message.subject, text: message.text }),
+      { idempotencyKey: message.idempotencyKey },
+    );
+    expect(consumeAuthRateLimit).toHaveBeenCalledWith("email_delivery", "global");
+  });
+
+  it("does not call Resend when the shared daily delivery budget is exhausted", async () => {
+    consumeAuthRateLimit.mockReturnValueOnce(false);
+
+    await expect(resendEmailTransport.send(message)).rejects.toBeInstanceOf(DailyEmailLimitError);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("fails closed without exposing provider details when Resend rejects a message", async () => {
+    send.mockResolvedValueOnce({ data: null, error: { name: "validation_error", message: "sensitive provider detail" } });
+
+    const failure = await resendEmailTransport.send(message).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).message).toBe("Transactional email provider rejected the message.");
+  });
+});

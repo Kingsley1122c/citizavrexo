@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX `card_requests_pending_user_unique` ON `card_requests` (`user_id`) WHERE "card_requests"."status" = 'pending';--> statement-breakpoint
+CREATE UNIQUE INDEX `card_requests_card_unique` ON `card_requests` (`card_id`);

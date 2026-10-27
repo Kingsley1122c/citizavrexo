@@ -1,0 +1,132 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1789142160176,
+      "tag": "0000_wet_jocasta",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1789142516698,
+      "tag": "0001_fine_nighthawk",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1789144628601,
+      "tag": "0002_round_apocalypse",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1789144784862,
+      "tag": "0003_married_lockheed",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1789145096741,
+      "tag": "0004_hot_forge",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1789167431384,
+      "tag": "0005_loud_caretaker",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1789182483395,
+      "tag": "0006_flippant_avengers",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1789213820198,
+      "tag": "0007_wonderful_santa_claus",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1789214513804,
+      "tag": "0008_curious_ogun",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1789217395837,
+      "tag": "0009_public_rafael_vega",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1789234355888,
+      "tag": "0010_lazy_bloodaxe",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1789319114309,
+      "tag": "0011_green_toxin",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1789319195529,
+      "tag": "0012_stormy_black_crow",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1789320000000,
+      "tag": "0013_usd_only",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1789400258094,
+      "tag": "0014_same_hannibal_king",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1789440000000,
+      "tag": "0015_multi_currency",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1790813032187,
+      "tag": "0016_silly_doctor_doom",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1790879638509,
+      "tag": "0017_tough_zombie",
+      "breakpoints": true
+    }
+  ]
+}
