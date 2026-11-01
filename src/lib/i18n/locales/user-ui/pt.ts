@@ -221,9 +221,9 @@ export const pt: UserUiCatalog = {
   },
   resetPassword: {
     title: "Repor palavra-passe",
-    subtitle: "Utilize pelo menos 12 carateres e evite reutilizar outra palavra-passe.",
+    subtitle: "Utilize pelo menos 8 carateres e evite reutilizar outra palavra-passe.",
     newPassword: "Nova palavra-passe",
-    newPasswordPlaceholder: "Pelo menos 12 carateres",
+    newPasswordPlaceholder: "Pelo menos 8 carateres",
     resetPassword: "Repor palavra-passe",
     passwordReset: "Palavra-passe reposta",
     returnTo: "Voltar para",

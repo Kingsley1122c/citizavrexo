@@ -57,9 +57,9 @@ Do not deploy these identities or passwords.
 
 ## Render deployment
 
-`render.yaml` defines one manually deployed Free Node web service. It stores SQLite and uploaded profile images under `/tmp/citizavrexo`, runs migrations on every fresh filesystem, provisions one configured super administrator idempotently, and uses `/api/health` to verify database access.
+`render.yaml` defines one paid Node web service with a 1 GB SSD mounted at `/var/data`. SQLite is stored at `/var/data/citizavrexo.db`, profile images at `/var/data/profile-images`, migrations run during production startup, and `/api/health` verifies database access. Automatic deployment tracks `main`.
 
-Render Free local storage is temporary. Accounts, balances, transactions, audit history, email state, sessions, and uploaded images reset together after an idle spin-down, restart, or redeploy. This deployment is unsuitable for real users or real financial records, has no backup or recovery guarantee, and connects no real banking or payment rail. All financial operations are simulated.
+The minimum instance is `0.5c-512mb` at $7/month and the 1 GB disk costs $0.25/month, for $7.25/month before usage-based overages. The application creates pre-migration SQLite snapshots on the disk and includes encrypted backup/restore commands; independent encrypted backup copies remain an operator responsibility. All financial operations are simulated.
 
 Set `RECOVERY_CODE_PEPPER`, `EPHEMERAL_ADMIN_EMAIL`, `EPHEMERAL_ADMIN_NAME`, `EPHEMERAL_ADMIN_PASSWORD`, `RESEND_API_KEY`, `EMAIL_FROM`, `APP_URL`, `CUSTOMER_SERVICE_EMAIL`, and `OPEN_EXCHANGE_RATES_APP_ID` as Render secrets. `EMAIL_FROM` must use a domain verified by Resend and `APP_URL` must be the canonical HTTPS origin. Never copy `.env.local` into the repository or run `npm run db:seed` on the hosted service. Cross-currency transfers remain unavailable unless the configured exchange-rate provider is usable.
 
@@ -75,11 +75,11 @@ The application stores only the ownership-transfer verification-token hash. A co
 
 The handover delivery adapter constructs the `https://citizavrexo.com/admin-transfer?token=...` link only at send time, never writes the plaintext token to the generic email outbox, logs, or analytics, and returns success only after Resend accepts the message.
 
-The approved Free configuration is intentionally disposable. See [Ephemeral hosting and recovery](docs/backup-and-restore.md). A persistent datastore with tested independent backups is required before accepting production financial records.
+See [Persistent SQLite backup and recovery](docs/backup-and-restore.md) for migration, backup, and restore operations.
 
 ## Production configuration still required
 
-SQLite is suitable here only for the single-process, temporary-storage configuration. Before serving real users or launching multiple instances, migrate the Drizzle schema to an approved managed database with encryption, retention policies, and tested restore procedures.
+SQLite is suitable only while the application remains a single-process, single-instance service with the attached disk. Before launching multiple instances, migrate the Drizzle schema to an approved managed database with encryption, retention policies, and tested restore procedures.
 
 The Resend transport and durable outbox worker run inside the single web process that owns the Render SQLite disk. The worker claims at most ten due messages per minute, retries failures at bounded intervals for at most five attempts, recovers stale claims, and uses stable provider idempotency keys to suppress duplicates. A persisted 90-message rolling daily budget keeps automated outbox delivery below Resend Free's 100-message daily limit. Self-registration remains blocked in production unless `RESEND_API_KEY`, `EMAIL_FROM`, and `APP_URL` are configured. Phone verification and new-device verification remain outside the current product scope. Real banking rails, payment networks, card issuing, identity verification, SMS, and biometric platform integrations are intentionally not connected.
 
@@ -101,7 +101,7 @@ npm run lint
 npm test
 npm run build
 npm start
-npm run start:free
+npm run start:production
 ```
 
 The default database is `./data/Citizavrexo.db`; set `DATABASE_URL=file:...` to use another SQLite file. Database files and local environment files are ignored.

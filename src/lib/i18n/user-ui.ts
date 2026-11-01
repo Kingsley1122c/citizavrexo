@@ -59,7 +59,7 @@ export function localizeAuthStateMessage(locale: Locale, message?: string): stri
     "Invalid email or password.": t.messages.genericAuthError,
     "Use a valid name, email, password, and exactly 4-digit transaction PIN.": t.auth.registerSubtitle,
     "Transaction PINs do not match.": t.messages.genericAuthError,
-    "Use a valid name, email, and a password of at least 12 characters.": t.auth.registerSubtitle,
+    "Use a valid name, email, and a password of at least 8 characters.": t.auth.registerSubtitle,
     "Registration cannot currently be completed because email verification delivery is unavailable. No account was created.": t.auth.registrationUnavailable,
     "We couldn't create that account. Please try again.": t.messages.genericAuthError,
     "We couldn't confirm verification delivery. If your account is pending, request a new verification link.": t.messages.genericAuthError,

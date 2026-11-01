@@ -5,6 +5,7 @@ import { eq, isNotNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { z } from "zod";
 import { auditEvents, credentials, users } from "../src/lib/db/schema";
+import { passwordSchema } from "../src/lib/auth/password-policy";
 
 const sqlite = new Database(process.env.DATABASE_URL?.replace(/^file:/, "") ?? "./data/Citizavrexo.db");
 sqlite.pragma("foreign_keys = ON");
@@ -13,7 +14,7 @@ const database = drizzle(sqlite);
 const inputSchema = z.object({
   email: z.string().trim().email().max(254),
   name: z.string().trim().min(2).max(100).regex(/^[^\p{Cc}\p{Cf}]+$/u),
-  password: z.string().min(12).max(128),
+  password: passwordSchema,
 });
 
 async function bootstrapAdmin() {

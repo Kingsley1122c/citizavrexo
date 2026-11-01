@@ -9,14 +9,14 @@ import { clearAuthRateLimit, consumeAuthRateLimit } from "@/lib/auth/rate-limit-
 import { SUPPORTED_LOCALES } from "@/lib/i18n/config";
 import { SUPPORTED_CURRENCIES } from "@/lib/currency";
 import { isTransactionalEmailConfigured } from "@/lib/notifications/resend-transport";
+import { passwordSchema } from "@/lib/auth/password-policy";
 
 export type AuthState = { error?: string; success?: string };
 const email = z.string().trim().email().max(254);
-const password = z.string().min(12).max(128);
 const requestMetadata = async () => { const requestHeaders = await headers(); return { ipAddress: requestHeaders.get("x-real-ip") ?? undefined, userAgent: requestHeaders.get("user-agent") ?? undefined }; };
 
 export async function loginAction(_: AuthState, formData: FormData): Promise<AuthState> {
-  const parsed = z.object({ email, password, persistent: z.boolean() }).safeParse({ email: formData.get("email"), password: formData.get("password"), persistent: formData.get("persistent") === "on" });
+  const parsed = z.object({ email, password: passwordSchema, persistent: z.boolean() }).safeParse({ email: formData.get("email"), password: formData.get("password"), persistent: formData.get("persistent") === "on" });
   if (!parsed.success) return { error: "Check your details and try again." };
   if (!consumeAuthRateLimit("login", parsed.data.email)) return { error: "Too many attempts. Please try again later." };
   try { await loginUser(parsed.data, await requestMetadata()); } catch { return { error: "Invalid email or password." }; }
@@ -25,7 +25,7 @@ export async function loginAction(_: AuthState, formData: FormData): Promise<Aut
 }
 
 export async function registerAction(_: AuthState, formData: FormData): Promise<AuthState> {
-  const parsed = z.object({ name: z.string().trim().min(2).max(100).regex(/^[^\p{Cc}\p{Cf}]+$/u), email, password, pin: z.string().regex(/^\d{4}$/), confirmation: z.string().regex(/^\d{4}$/), locale: z.enum(SUPPORTED_LOCALES), currency: z.enum(SUPPORTED_CURRENCIES) }).safeParse({ name: formData.get("name"), email: formData.get("email"), password: formData.get("password"), pin: formData.get("pin"), confirmation: formData.get("confirmation"), locale: formData.get("locale"), currency: formData.get("currency") });
+  const parsed = z.object({ name: z.string().trim().min(2).max(100).regex(/^[^\p{Cc}\p{Cf}]+$/u), email, password: passwordSchema, pin: z.string().regex(/^\d{4}$/), confirmation: z.string().regex(/^\d{4}$/), locale: z.enum(SUPPORTED_LOCALES), currency: z.enum(SUPPORTED_CURRENCIES) }).safeParse({ name: formData.get("name"), email: formData.get("email"), password: formData.get("password"), pin: formData.get("pin"), confirmation: formData.get("confirmation"), locale: formData.get("locale"), currency: formData.get("currency") });
   if (!parsed.success) return { error: "Use a valid name, email, password, and exactly 4-digit transaction PIN." };
   if (parsed.data.pin !== parsed.data.confirmation) return { error: "Transaction PINs do not match." };
   if (!isTransactionalEmailConfigured()) return { error: "Registration cannot currently be completed because email verification delivery is unavailable. No account was created." };
@@ -48,7 +48,7 @@ export async function resendVerificationAction(formData: FormData): Promise<void
 }
 
 export async function completePasswordResetAction(_: AuthState, formData: FormData): Promise<AuthState> {
-  const parsed = z.object({ token: z.string().min(32).max(128), password }).safeParse({ token: formData.get("token"), password: formData.get("password") });
+  const parsed = z.object({ token: z.string().min(32).max(128), password: passwordSchema }).safeParse({ token: formData.get("token"), password: formData.get("password") });
   if (!parsed.success) return { error: "This reset link is invalid or the password is too short." };
   if (!consumeAuthRateLimit("password_reset", parsed.data.token)) return { error: "This reset link is invalid or expired." };
   try { await resetPasswordWithToken(parsed.data.token, parsed.data.password); } catch { return { error: "This reset link is invalid or expired." }; }

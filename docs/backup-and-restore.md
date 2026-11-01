@@ -1,28 +1,33 @@
-# Ephemeral hosting and recovery
+# Persistent SQLite backup and recovery
 
-## Approved Free configuration
+## Production storage
 
-The Render Free service stores the SQLite database at `/tmp/citizavrexo/Citizavrexo.db` and profile images at `/tmp/citizavrexo/profile-images`. Render does not preserve these paths after an idle spin-down, restart, or redeploy. Accounts, balances, transactions, audit history, email state, sessions, and uploaded images therefore reset together.
+Citizavrexo uses one Render web service with one attached SSD. The disk mounts at `/var/data`, the SQLite database is `/var/data/citizavrexo.db`, and profile images are stored in `/var/data/profile-images`.
 
-On every fresh filesystem, `npm run start:free` creates the required directories, applies all Drizzle migrations, and provisions the configured super administrator if no administrator exists. Repeated starts against the same filesystem do not create another administrator.
+The minimum suitable Render configuration is one `0.5c-512mb` web instance at $7/month and a 1 GB SSD at $0.25/month, for $7.25/month before bandwidth or build-minute overages. Keep the service at one instance while SQLite remains the datastore.
 
-## Operating boundary
+`npm run start:production` creates the storage directories, creates a SQLite online snapshot under `/var/data/backups`, retains the five newest pre-migration snapshots, applies every Drizzle migration, and preserves an existing administrator. Bootstrap values are used only when the database has no administrator.
 
-- All financial operations are simulated. No banking rail, card network, or payment provider moves real money.
-- This configuration is unsuitable for real users or real financial records.
-- There is no backup, restore, continuity, or recovery-point guarantee.
-- Do not store information that must survive service interruption.
-- Cross-currency transfers remain unavailable unless the configured exchange-rate provider is usable.
-- Keep the service at one instance while SQLite remains the datastore.
+Render encrypts disks and snapshots at rest. Render takes one disk snapshot every 24 hours and retains snapshots for seven days. Render advises against using a raw disk snapshot as the primary recovery method for a custom database, so use application-level SQLite backups for routine recovery.
 
-## Required secrets
+## Independent encrypted backup
 
-Configure `RECOVERY_CODE_PEPPER`, `EPHEMERAL_ADMIN_EMAIL`, `EPHEMERAL_ADMIN_NAME`, `EPHEMERAL_ADMIN_PASSWORD`, `RESEND_API_KEY`, `EMAIL_FROM`, `APP_URL`, `CUSTOMER_SERVICE_EMAIL`, and `OPEN_EXCHANGE_RATES_APP_ID` in Render. Never commit these values or expose them through `NEXT_PUBLIC_*` variables.
+Generate a canonical base64-encoded 32-byte `BACKUP_ENCRYPTION_KEY` and keep it outside Render. Never put it in source control.
 
-The administrator password must contain 12 to 128 characters. The initializer hashes it with Argon2 and does not print the administrator identity or credentials. Registration remains unavailable when transactional email delivery is not fully configured.
+```bash
+DATABASE_URL=file:/var/data/citizavrexo.db npm run db:backup -- /var/data/backups/citizavrexo.nvbackup
+npm run db:backup:verify -- /var/data/backups/citizavrexo.nvbackup
+```
 
-## Moving to persistent hosting
+Copy encrypted backups to an independent restricted location. A backup that exists only on the same disk is not sufficient disaster recovery.
 
-Before accepting production records, replace temporary local storage with an approved persistent datastore and image store. Add encrypted independent backups, retention rules, monitoring, access controls, and documented restore tests. The repository backup utilities can support a future persistent SQLite deployment, but running them against the Free service does not provide continuity because both the active database and local backup artifacts can disappear together.
+## Restore procedure
 
-No Render service, provider subscription, external datastore, backup target, or deployment is created by this repository configuration.
+1. Put the service into a maintenance window and create a final encrypted backup.
+2. Stop writes to the database.
+3. Restore to a new path: `npm run db:restore -- <backup.nvbackup> /var/data/citizavrexo-restored.db`.
+4. Verify the restored file and retain the old database.
+5. Move the restored file to `/var/data/citizavrexo.db` while the service is stopped.
+6. Start the service, verify `/api/health`, administrator login, record counts, balances, audit history, and profile images.
+
+All financial operations remain simulated. No banking rail, card network, or payment provider moves real money.

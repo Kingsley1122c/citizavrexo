@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "start:production": "npm run db:prepare && npm run db:migrate && next start",
+    "start:production": "tsx scripts/initialize-storage.ts && next start",
     "start:free": "tsx scripts/initialize-ephemeral.ts && next start",
     "lint": "eslint",
     "test": "vitest run",

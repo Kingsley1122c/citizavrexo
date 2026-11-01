@@ -221,9 +221,9 @@ export const es: UserUiCatalog = {
   },
   resetPassword: {
     title: "Restablecer contraseña",
-    subtitle: "Usa al menos 12 caracteres y evita reutilizar otra contraseña.",
+    subtitle: "Usa al menos 8 caracteres y evita reutilizar otra contraseña.",
     newPassword: "Nueva contraseña",
-    newPasswordPlaceholder: "Al menos 12 caracteres",
+    newPasswordPlaceholder: "Al menos 8 caracteres",
     resetPassword: "Restablecer contraseña",
     passwordReset: "Contraseña restablecida",
     returnTo: "Volver a",

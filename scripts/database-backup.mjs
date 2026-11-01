@@ -69,7 +69,7 @@ function verifyDatabase(path) {
     if (requiredTables.some((table) => !tables.has(table))) throw new Error("The backup does not contain the expected schema.");
     if (!database.prepare("SELECT 1 FROM users WHERE admin_role IS NOT NULL AND status = 'active' LIMIT 1").get()) throw new Error("The backup does not contain an active administrator.");
     if (!database.prepare("SELECT 1 FROM audit_events LIMIT 1").get()) throw new Error("The backup does not contain audit records.");
-    if (!database.prepare("SELECT 1 FROM users LIMIT 1").get() || !database.prepare("SELECT 1 FROM accounts LIMIT 1").get()) throw new Error("The backup does not contain expected application data.");
+    if (!database.prepare("SELECT 1 FROM users LIMIT 1").get()) throw new Error("The backup does not contain expected application data.");
   } finally {
     database.close();
   }

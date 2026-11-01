@@ -2,22 +2,26 @@
   - type: web
     name: citizavrexo
     runtime: node
-    plan: free
+    plan: 0.5c-512mb
     region: oregon
     numInstances: 1
     buildCommand: npm ci && STORAGE_MODE=persistent DATABASE_URL=file:./data/build.db PROFILE_IMAGE_DIR=./data/profile-images npm run build
-    startCommand: npm run start:free
+    startCommand: npm run start:production
     healthCheckPath: /api/health
-    autoDeployTrigger: off
+    autoDeployTrigger: commit
+    disk:
+      name: citizavrexo-data
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
       - key: NODE_VERSION
         value: 22.22.0
       - key: STORAGE_MODE
-        value: ephemeral
+        value: persistent
       - key: DATABASE_URL
-        value: file:/tmp/citizavrexo/Citizavrexo.db
+        value: file:/var/data/citizavrexo.db
       - key: PROFILE_IMAGE_DIR
-        value: /tmp/citizavrexo/profile-images
+        value: /var/data/profile-images
       - key: RECOVERY_CODE_PEPPER
         sync: false
       - key: EPHEMERAL_ADMIN_EMAIL

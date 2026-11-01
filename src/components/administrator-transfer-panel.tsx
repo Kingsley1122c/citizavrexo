@@ -13,7 +13,7 @@ export function AdministratorTransferPanel() {
       <p className="note">The recipient must verify their email and set a new password. Completing the transfer suspends this administrator identity and revokes all of its sessions.</p>
       <form action={action} className="form-grid">
         <label>New administrator email<input name="newEmail" type="email" autoComplete="email" placeholder="client@example.com" required maxLength={254}/></label>
-        <label>Current password<input name="currentPassword" type="password" autoComplete="current-password" placeholder="Confirm your password" required minLength={12} maxLength={128}/></label>
+        <label>Current password<input name="currentPassword" type="password" autoComplete="current-password" placeholder="Confirm your password" required minLength={8} maxLength={128}/></label>
         <div className="transfer-submit">
           <span><Mail size={17}/><small>A 30-minute, single-use verification link will be sent to the recipient.</small></span>
           <button className="button primary" type="submit" disabled={pending}><ShieldCheck size={17}/>{pending ? "Verifying..." : "Begin secure transfer"}</button>

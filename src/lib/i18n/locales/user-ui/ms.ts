@@ -221,9 +221,9 @@ export const ms: UserUiCatalog = {
   },
   resetPassword: {
     title: "Tetapkan semula kata laluan",
-    subtitle: "Gunakan sekurang-kurangnya 12 aksara dan elakkan menggunakan semula kata laluan lain.",
+    subtitle: "Gunakan sekurang-kurangnya 8 aksara dan elakkan menggunakan semula kata laluan lain.",
     newPassword: "Kata laluan baharu",
-    newPasswordPlaceholder: "Sekurang-kurangnya 12 aksara",
+    newPasswordPlaceholder: "Sekurang-kurangnya 8 aksara",
     resetPassword: "Tetapkan semula kata laluan",
     passwordReset: "Kata laluan ditetapkan semula",
     returnTo: "Kembali ke",

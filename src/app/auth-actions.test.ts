@@ -105,6 +105,22 @@ describe("registerAction", () => {
     expect(redirect).not.toHaveBeenCalled();
   });
 
+  it("accepts an 8-character password without composition requirements", async () => {
+    const formData = validRegistration();
+    formData.set("password", "abcdefgh");
+
+    await expect(registerAction({}, formData)).resolves.toEqual({ success: "Verification email accepted for delivery. Check your inbox to continue." });
+    expect(registerUser).toHaveBeenCalledWith(expect.objectContaining({ password: "abcdefgh" }), expect.any(Object));
+  });
+
+  it("rejects passwords shorter than 8 characters", async () => {
+    const formData = validRegistration();
+    formData.set("password", "abcdefg");
+
+    await expect(registerAction({}, formData)).resolves.toEqual({ error: "Use a valid name, email, password, and exactly 4-digit transaction PIN." });
+    expect(registerUser).not.toHaveBeenCalled();
+  });
+
   it("does not create an account when email verification is unavailable", async () => {
     vi.mocked(isTransactionalEmailConfigured).mockReturnValueOnce(false);
 

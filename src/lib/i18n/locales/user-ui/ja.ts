@@ -221,9 +221,9 @@ export const ja: UserUiCatalog = {
   },
   resetPassword: {
     title: "パスワードをリセット",
-    subtitle: "12文字以上を使用し、他で使用しているパスワードの再利用は避けてください。",
+    subtitle: "8文字以上を使用し、他で使用しているパスワードの再利用は避けてください。",
     newPassword: "新しいパスワード",
-    newPasswordPlaceholder: "12文字以上",
+    newPasswordPlaceholder: "8文字以上",
     resetPassword: "パスワードをリセット",
     passwordReset: "パスワードがリセットされました",
     returnTo: "戻る先",

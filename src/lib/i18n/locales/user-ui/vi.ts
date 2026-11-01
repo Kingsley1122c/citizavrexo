@@ -221,9 +221,9 @@ export const vi: UserUiCatalog = {
   },
   resetPassword: {
     title: "Đặt lại mật khẩu",
-    subtitle: "Sử dụng ít nhất 12 ký tự và tránh dùng lại mật khẩu khác.",
+    subtitle: "Sử dụng ít nhất 8 ký tự và tránh dùng lại mật khẩu khác.",
     newPassword: "Mật khẩu mới",
-    newPasswordPlaceholder: "Ít nhất 12 ký tự",
+    newPasswordPlaceholder: "Ít nhất 8 ký tự",
     resetPassword: "Đặt lại mật khẩu",
     passwordReset: "Đặt lại mật khẩu thành công",
     returnTo: "Quay lại",

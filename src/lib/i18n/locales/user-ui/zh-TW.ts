@@ -221,9 +221,9 @@ export const zhTW: UserUiCatalog = {
   },
   resetPassword: {
     title: "重設密碼",
-    subtitle: "請使用至少 12 個字元，並避免重複使用其他密碼。",
+    subtitle: "請使用至少 8 個字元，並避免重複使用其他密碼。",
     newPassword: "新密碼",
-    newPasswordPlaceholder: "至少 12 個字元",
+    newPasswordPlaceholder: "至少 8 個字元",
     resetPassword: "重設密碼",
     passwordReset: "密碼已重設",
     returnTo: "返回",

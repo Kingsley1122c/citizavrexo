@@ -5,10 +5,10 @@ import { and, eq, gt, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db/client";
 import { administratorTransfers, auditEvents, credentials, devices, sessions, users } from "@/lib/db/schema";
+import { passwordSchema } from "@/lib/auth/password-policy";
 
 const emailSchema = z.string().trim().email().max(254);
 const nameSchema = z.string().trim().min(2).max(100).regex(/^[^\p{Cc}\p{Cf}]+$/u);
-const passwordSchema = z.string().min(12).max(128);
 const tokenSchema = z.string().min(32).max(128);
 const passwordOptions = { memoryCost: 19456, timeCost: 2, parallelism: 1 };
 const hashPassword = async (password: string) => (await import("@node-rs/argon2")).hash(password, passwordOptions);

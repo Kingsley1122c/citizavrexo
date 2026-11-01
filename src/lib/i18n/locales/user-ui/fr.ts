@@ -221,9 +221,9 @@ export const fr: UserUiCatalog = {
   },
   resetPassword: {
     title: "Réinitialiser le mot de passe",
-    subtitle: "Utilisez au moins 12 caractères et évitez de réutiliser un autre mot de passe.",
+    subtitle: "Utilisez au moins 8 caractères et évitez de réutiliser un autre mot de passe.",
     newPassword: "Nouveau mot de passe",
-    newPasswordPlaceholder: "Au moins 12 caractères",
+    newPasswordPlaceholder: "Au moins 8 caractères",
     resetPassword: "Réinitialiser le mot de passe",
     passwordReset: "Mot de passe réinitialisé",
     returnTo: "Retour à la",

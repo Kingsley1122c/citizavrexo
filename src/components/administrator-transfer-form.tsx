@@ -14,7 +14,7 @@ export function AdministratorTransferForm({ token }: { token: string }) {
       <span className="auth-icon"><UserRound size={23}/></span><h2>Accept ownership</h2><p>Confirm your name and choose a unique password for the new administrator identity.</p>
       <input type="hidden" name="verificationToken" value={token}/>
       <label>Full name<span><UserRound size={17}/><input name="newAdministratorName" autoComplete="name" placeholder="Your full name" required minLength={2} maxLength={100}/></span></label>
-      <label>New password<span><LockKeyhole size={17}/><input name="newPassword" type={showPassword ? "text" : "password"} autoComplete="new-password" placeholder="At least 12 characters" required minLength={12} maxLength={128}/><button type="button" aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword(!showPassword)}><Eye size={17}/></button></span></label>
+      <label>New password<span><LockKeyhole size={17}/><input name="newPassword" type={showPassword ? "text" : "password"} autoComplete="new-password" placeholder="At least 8 characters" required minLength={8} maxLength={128}/><button type="button" aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword(!showPassword)}><Eye size={17}/></button></span></label>
       {state.error && <p className="auth-message error" role="alert">{state.error}</p>}
       <button className="button primary auth-submit" type="submit" disabled={pending}>{pending ? "Verifying..." : "Accept ownership"}<ArrowRight size={18}/></button>
     </form></section>

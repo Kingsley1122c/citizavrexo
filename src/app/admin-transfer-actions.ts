@@ -6,14 +6,14 @@ import { requirePermission } from "@/lib/auth/authorization";
 import { clearAuthRateLimit, consumeAuthRateLimit } from "@/lib/auth/rate-limit-service";
 import { AdministratorTransferDeliveryUnavailableError, completeAdministratorTransfer, initiateAdministratorTransfer } from "@/lib/auth/administrator-transfer-service";
 import { deliverAdministratorTransferVerification } from "@/lib/notifications/administrator-transfer-delivery";
+import { passwordSchema } from "@/lib/auth/password-policy";
 
 export type AdministratorTransferState = { error?: string; success?: string };
 const email = z.string().trim().email().max(254);
-const password = z.string().min(12).max(128);
 
 export async function initiateAdministratorTransferAction(_: AdministratorTransferState, formData: FormData): Promise<AdministratorTransferState> {
   const identity = await requirePermission("admin.ownership.transfer");
-  const parsed = z.object({ newEmail: email, currentPassword: password }).safeParse({ newEmail: formData.get("newEmail"), currentPassword: formData.get("currentPassword") });
+  const parsed = z.object({ newEmail: email, currentPassword: passwordSchema }).safeParse({ newEmail: formData.get("newEmail"), currentPassword: formData.get("currentPassword") });
   if (!parsed.success) return { error: "Enter a valid email address and your current password." };
   if (!consumeAuthRateLimit("admin_transfer", identity.id)) return { error: "Too many attempts. Please try again later." };
 
@@ -28,7 +28,7 @@ export async function initiateAdministratorTransferAction(_: AdministratorTransf
 }
 
 export async function completeAdministratorTransferAction(_: AdministratorTransferState, formData: FormData): Promise<AdministratorTransferState> {
-  const parsed = z.object({ verificationToken: z.string().min(32).max(128), newAdministratorName: z.string().trim().min(2).max(100).regex(/^[^\p{Cc}\p{Cf}]+$/u), newPassword: password }).safeParse({ verificationToken: formData.get("verificationToken"), newAdministratorName: formData.get("newAdministratorName"), newPassword: formData.get("newPassword") });
+  const parsed = z.object({ verificationToken: z.string().min(32).max(128), newAdministratorName: z.string().trim().min(2).max(100).regex(/^[^\p{Cc}\p{Cf}]+$/u), newPassword: passwordSchema }).safeParse({ verificationToken: formData.get("verificationToken"), newAdministratorName: formData.get("newAdministratorName"), newPassword: formData.get("newPassword") });
   if (!parsed.success) return { error: "This verification link is invalid or the submitted details are incomplete." };
   if (!consumeAuthRateLimit("admin_transfer_verify", parsed.data.verificationToken)) return { error: "This verification link is invalid or expired." };
 

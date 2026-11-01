@@ -14,6 +14,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import type { AuthState } from "@/app/auth-actions";
 import {
   localeNames,
+  REGISTRATION_LOCALES,
   resolveSupportedLocale,
   SUPPORTED_LOCALES,
   type Locale,
@@ -23,6 +24,13 @@ import { CurrencySelector } from "@/components/currency-selector";
 import { BrandLogo } from "@/components/brand-logo";
 
 type AuthAction = (state: AuthState, formData: FormData) => Promise<AuthState>;
+const localeIdentifiers: Record<(typeof REGISTRATION_LOCALES)[number], string> = {
+  en: "EN",
+  ko: "한",
+  ja: "あ",
+  "zh-CN": "简",
+  "zh-TW": "繁",
+};
 
 export function AuthPanel({
   mode,
@@ -79,21 +87,42 @@ export function AuthPanel({
       </section>
       <section className="auth-form-wrap">
         <form className="auth-form" action={formAction}>
-          <label className="locale">
-            <Globe2 size={16} />
-            <select
-              name="locale"
-              aria-label={t.app.language}
-              value={locale}
-              onChange={(event) => setLocale(event.target.value as Locale)}
-            >
-              {SUPPORTED_LOCALES.map((value) => (
-                <option key={value} value={value}>
-                  {localeNames[value]}
-                </option>
-              ))}
-            </select>
-          </label>
+          {mode === "register" ? (
+            <fieldset className="registration-language-selector">
+              <legend><Globe2 size={17} />{t.app.language}</legend>
+              <input type="hidden" name="locale" value={locale} />
+              <div>
+                {REGISTRATION_LOCALES.map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={locale === value ? "selected" : ""}
+                    aria-pressed={locale === value}
+                    onClick={() => setLocale(value)}
+                  >
+                    <span aria-hidden="true">{localeIdentifiers[value]}</span>
+                    <b>{localeNames[value]}</b>
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          ) : (
+            <label className="locale">
+              <Globe2 size={16} />
+              <select
+                name="locale"
+                aria-label={t.app.language}
+                value={locale}
+                onChange={(event) => setLocale(event.target.value as Locale)}
+              >
+                {SUPPORTED_LOCALES.map((value) => (
+                  <option key={value} value={value}>
+                    {localeNames[value]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <span className="auth-icon">
             <LockKeyhole size={22} />
           </span>
@@ -142,7 +171,8 @@ export function AuthPanel({
                   }
                   placeholder={t.auth.passwordPlaceholder}
                   required
-                  minLength={12}
+                  minLength={8}
+                  maxLength={128}
                 />
                 <button type="button" aria-label={show ? t.auth.hidePassword : t.auth.showPassword} onClick={() => setShow(!show)}>
                   <Eye size={17} />

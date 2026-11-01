@@ -221,9 +221,9 @@ export const id: UserUiCatalog = {
   },
   resetPassword: {
     title: "Reset kata sandi",
-    subtitle: "Gunakan minimal 12 karakter dan hindari menggunakan kembali kata sandi lain.",
+    subtitle: "Gunakan minimal 8 karakter dan hindari menggunakan kembali kata sandi lain.",
     newPassword: "Kata sandi baru",
-    newPasswordPlaceholder: "Minimal 12 karakter",
+    newPasswordPlaceholder: "Minimal 8 karakter",
     resetPassword: "Reset kata sandi",
     passwordReset: "Kata sandi berhasil direset",
     returnTo: "Kembali ke",

@@ -221,9 +221,9 @@ export const bn: UserUiCatalog = {
   },
   resetPassword: {
     title: "পাসওয়ার্ড রিসেট করুন",
-    subtitle: "অন্তত ১২টি অক্ষর ব্যবহার করুন এবং অন্য পাসওয়ার্ড পুনরায় ব্যবহার করা এড়িয়ে চলুন।",
+    subtitle: "অন্তত ৮টি অক্ষর ব্যবহার করুন এবং অন্য পাসওয়ার্ড পুনরায় ব্যবহার করা এড়িয়ে চলুন।",
     newPassword: "নতুন পাসওয়ার্ড",
-    newPasswordPlaceholder: "অন্তত ১২টি অক্ষর",
+    newPasswordPlaceholder: "অন্তত ৮টি অক্ষর",
     resetPassword: "পাসওয়ার্ড রিসেট করুন",
     passwordReset: "পাসওয়ার্ড রিসেট",
     returnTo: "ফিরে যান",

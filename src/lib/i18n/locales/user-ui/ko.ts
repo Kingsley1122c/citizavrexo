@@ -221,9 +221,9 @@ export const ko: UserUiCatalog = {
   },
   resetPassword: {
     title: "비밀번호 재설정",
-    subtitle: "12자 이상을 사용하고 다른 곳에서 사용한 비밀번호는 재사용하지 마세요.",
+    subtitle: "8자 이상을 사용하고 다른 곳에서 사용한 비밀번호는 재사용하지 마세요.",
     newPassword: "새 비밀번호",
-    newPasswordPlaceholder: "12자 이상",
+    newPasswordPlaceholder: "8자 이상",
     resetPassword: "비밀번호 재설정",
     passwordReset: "비밀번호가 재설정되었습니다",
     returnTo: "돌아가기",

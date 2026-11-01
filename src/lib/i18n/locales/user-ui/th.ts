@@ -221,9 +221,9 @@ export const th: UserUiCatalog = {
   },
   resetPassword: {
     title: "รีเซ็ตรหัสผ่าน",
-    subtitle: "ใช้อย่างน้อย 12 ตัวอักษร และหลีกเลี่ยงการใช้รหัสผ่านซ้ำ",
+    subtitle: "ใช้อย่างน้อย 8 ตัวอักษร และหลีกเลี่ยงการใช้รหัสผ่านซ้ำ",
     newPassword: "รหัสผ่านใหม่",
-    newPasswordPlaceholder: "อย่างน้อย 12 ตัวอักษร",
+    newPasswordPlaceholder: "อย่างน้อย 8 ตัวอักษร",
     resetPassword: "รีเซ็ตรหัสผ่าน",
     passwordReset: "รีเซ็ตรหัสผ่านแล้ว",
     returnTo: "กลับไปที่",

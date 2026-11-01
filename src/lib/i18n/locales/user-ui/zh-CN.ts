@@ -221,9 +221,9 @@ export const zhCN: UserUiCatalog = {
   },
   resetPassword: {
     title: "重置密码",
-    subtitle: "请使用至少12个字符，并避免重复使用其他密码。",
+    subtitle: "请使用至少8个字符，并避免重复使用其他密码。",
     newPassword: "新密码",
-    newPasswordPlaceholder: "至少12个字符",
+    newPasswordPlaceholder: "至少8个字符",
     resetPassword: "重置密码",
     passwordReset: "密码已重置",
     returnTo: "返回",

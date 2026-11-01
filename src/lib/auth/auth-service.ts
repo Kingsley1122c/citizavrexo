@@ -16,12 +16,12 @@ import { userUi } from "@/lib/i18n/user-ui";
 import { deriveActionToken, hashActionToken } from "./action-token";
 import { createSession } from "./session-service";
 import { hashTransactionPin } from "@/lib/security/transaction-pin-service";
+import { passwordSchema } from "./password-policy";
 
 const initials = (name: string) => name.split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("");
 const passwordOptions = { memoryCost: 19456, timeCost: 2, parallelism: 1 };
 const hashPassword = async (password: string) => (await import("@node-rs/argon2")).hash(password, passwordOptions);
 const verifyPassword = async (passwordHash: string, password: string) => (await import("@node-rs/argon2")).verify(passwordHash, password);
-const passwordSchema = z.string().min(12).max(128);
 const safeName = z.string().trim().min(2).max(100).regex(/^[^\p{Cc}\p{Cf}]+$/u);
 type SessionRequest = { ipAddress?: string; userAgent?: string };
 export class VerificationEmailDeliveryError extends Error {}
@@ -30,6 +30,7 @@ export async function registerUser(input: { name: string; email: string; passwor
   if (!transport) requireTransactionalEmailConfiguration();
   const deliveryTransport = transport ?? resendEmailTransport;
   const name = safeName.parse(input.name);
+  const password = passwordSchema.parse(input.password);
   const email = input.email.trim().toLowerCase();
   const existing = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
   if (existing.length) throw new Error("Unable to create account.");
@@ -37,7 +38,7 @@ export async function registerUser(input: { name: string; email: string; passwor
   const tokenId = randomUUID();
   const outboxId = randomUUID();
   const verificationToken = deriveActionToken(tokenId, "email_verification");
-  const passwordHash = await hashPassword(input.password);
+  const passwordHash = await hashPassword(password);
   const transactionPinHash = await hashTransactionPin(input.pin);
   db.transaction((tx) => {
     const accountNumber = generateAccountNumber((number) => Boolean(tx.select({ id: accounts.id }).from(accounts).where(eq(accounts.number, number)).get()));
