@@ -14,6 +14,8 @@ describe("event email service", () => {
     expect(message.subject).toBe(`${email.subjectPrefix} · ${email.subjects.security_alert}`);
     expect(message.html).toContain("SEC-92AH");
     expect(message.html).toContain("<meta name=\"viewport\"");
+    expect(message.html).toContain(">Citizavrexo</p>");
+    expect(message.html).not.toContain("Citizavrexo Core");
     expect(message).not.toHaveProperty("password");
     expect(message).not.toHaveProperty("token");
     expect(message).not.toHaveProperty("recoveryCode");
@@ -29,6 +31,16 @@ describe("event email service", () => {
     expect(send.mock.calls[0][0].html).toContain(userUi("ja").app.nav.profile);
     expect(send.mock.calls[0][0].html).toContain(userUi("ja").app.nav.security);
     expect(send.mock.calls[0][0].html).toContain("https://citizavrexo.com/login");
+    vi.unstubAllEnvs();
+  });
+
+  it("uses the current brand in administrator message emails", async () => {
+    vi.stubEnv("APP_URL", "https://citizavrexo.com");
+    const send = vi.fn().mockResolvedValue(undefined);
+    await sendEventEmail({ send }, { to: "customer@example.test", locale: "en", event: "admin_message", eventReference: "MESSAGE-1", displayName: "Customer", subject: "Account update", message: "Your account review is complete." }, "outbox/admin-message");
+    const message = send.mock.calls[0][0];
+    expect(message.html).toContain(">Citizavrexo</p>");
+    expect(message.html).not.toContain("Citizavrexo Core");
     vi.unstubAllEnvs();
   });
 

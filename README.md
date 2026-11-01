@@ -71,7 +71,7 @@ Remove all three bootstrap variables immediately afterward. The command refuses 
 
 The client handover consists of administrator access to CITIZAVREXO.
 
-The client receives administrator ownership through **Admin â†’ Settings â†’ Transfer ownership**. The client follows the secure ownership-transfer link and creates their own administrator password. The previous administrator's sessions are revoked when the transfer is completed.
+The client receives administrator ownership through **Admin -> Settings -> Transfer ownership**. The client follows the secure ownership-transfer link and creates their own administrator password. The previous administrator's sessions are revoked when the transfer is completed.
 
 Infrastructure, source-code, deployment, domain, email-service, and customer-service accounts remain under the developer/operator's control unless separately agreed with the client.
 

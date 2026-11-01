@@ -159,6 +159,7 @@ export function localizeNotification(locale: Locale, notification: Notification)
     "money added to your account": t.notifications.titleMoneyAdded,
     "account suspended": t.notifications.titleAccountSuspended,
     "account restored": t.notifications.titleAccountRestored,
+    "welcome to citizavrexo": t.notifications.titleWelcome,
     "welcome to citizavrexo core": t.notifications.titleWelcome,
     "physical card request submitted": t.notifications.titleCardRequestSubmitted,
     "physical card request approved": t.notifications.titleCardRequestApproved,
@@ -178,7 +179,7 @@ export function localizeNotification(locale: Locale, notification: Notification)
   let message = notification.message;
   if (lowerTitle === "money added to your account") {
     const amount = notification.message.match(/^\$[\d,]+\.\d{2}/)?.[0];
-    message = `${amount ? `${amount} ┬╖ ` : ""}${t.notifications.titleMoneyAdded}. ${t.email.reference}: ${notification.eventReference}.`;
+    message = `${amount ? `${amount} · ` : ""}${t.notifications.titleMoneyAdded}. ${t.email.reference}: ${notification.eventReference}.`;
   } else if (lowerTitle === "account suspended" || lowerTitle === "account restored") {
     message = title;
   } else if (lowerTitle === "account credited" || lowerTitle === "account debited") {
@@ -204,7 +205,7 @@ export function localizeNotification(locale: Locale, notification: Notification)
   } else if (lowerMessage.startsWith("you received a transfer from ")) {
     message = `${t.notifications.messageTransferReceivedPrefix} ${notification.message.slice("You received a transfer from ".length)}`;
   } else if (/^\$[\d,]+\.\d{2} was received from /i.test(notification.message)) {
-    message = `${t.notifications.messageTransferReceivedPrefix} ${notification.message.replace(/ was received from /i, " ┬╖ ")}`;
+    message = `${t.notifications.messageTransferReceivedPrefix} ${notification.message.replace(/ was received from /i, " · ")}`;
   }
 
   return {

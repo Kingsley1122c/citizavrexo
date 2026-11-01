@@ -22,7 +22,6 @@ import type {
   AdminRole,
   Currency,
   WithdrawalAuthorizationCodeStage,
-  WithdrawalAuthorizationCodeStatus,
   WithdrawalRequestStatus,
 } from "@/lib/domain";
 import { userUi } from "@/lib/i18n/user-ui";

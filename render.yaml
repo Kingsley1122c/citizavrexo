@@ -1,6 +1,6 @@
 ﻿services:
   - type: web
-    name: Citizavrexo-core
+    name: citizavrexo
     runtime: node
     plan: starter
     region: oregon

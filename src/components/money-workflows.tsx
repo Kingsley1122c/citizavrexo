@@ -401,7 +401,6 @@ function WithdrawalDialog({
   const authorizationCompleted = Boolean(swiftCodeState.authorizationCompleted ?? withdrawalCodeState.authorizationCompleted ?? state.authorizationCompleted);
   const currentError = swiftCodeState.error ?? withdrawalCodeState.error ?? state.error;
   const stageOneComplete = currentStage === "awaiting_swift_code" || currentStage === "authorized";
-  const support = state.withdrawalSupport;
   const supportMessage = currentSupport
     ? withdrawalSupportMessage(text.supportMessageTemplate, {
         reference: currentSupport.reference,
