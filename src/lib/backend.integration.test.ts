@@ -312,7 +312,7 @@ describe("authentication abuse controls", () => {
     const countsBefore = tables.map((table) => database.select().from(table).all().length);
     vi.stubEnv("NODE_ENV", "production");
     await expect(registerUser(
-      { name: "Production Test", email: "production-registration@example.test", password: "TestPassword!2026", pin: "2468", locale: "en", currency: "USD" },
+      { name: "Production Test", username: "production.test", email: "production-registration@example.test", password: "TestPassword!2026", pin: "2468", locale: "en", currency: "USD" },
       { ipAddress: "203.0.113.12", userAgent: "Production Registration Browser" },
     )).rejects.toThrow("Transactional email delivery is unavailable.");
 
@@ -1230,7 +1230,7 @@ describe("secure user deletion", () => {
     expect(database.select().from(withdrawalRequests).where(eq(withdrawalRequests.id, "delete-withdrawal")).get()?.status).toBe("cancelled");
     expect(database.select().from(auditEvents).where(and(eq(auditEvents.target, "rejected-user"), eq(auditEvents.action, "user.delete"))).get()).toBeTruthy();
     const { loginUser } = await import("./auth/auth-service");
-    await expect(loginUser({ email: "rejected@example.test", password: "any-password-value", persistent: false })).rejects.toThrow("Invalid email or password");
+    await expect(loginUser({ email: "rejected@example.test", password: "any-password-value", persistent: false })).rejects.toThrow("Invalid email, username, or password");
     const { getAdminWorkspace } = await import("./repositories/workspace-repository");
     expect((await getAdminWorkspace("super_admin")).users.some((user) => user.id === "rejected-user")).toBe(false);
     expect(() => deleteUser({ actorId: "last-super", actorLabel: "last-super@example.test", actorRole: "super_admin", targetUserId: "rejected-user", confirmation: "DELETE USER" })).toThrow("not available");

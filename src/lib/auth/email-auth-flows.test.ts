@@ -68,7 +68,7 @@ describe("email-backed authentication", () => {
     const { registerUser } = await import("./auth-service");
     const email = `registration-${currency.toLowerCase()}@example.test`;
 
-    await registerUser({ name: `${currency} Registration`, email, password: "RegistrationPassword!2026", pin: "2468", locale: "en", currency }, undefined, captureTransport().transport);
+    await registerUser({ name: `${currency} Registration`, username: `registration.${currency.toLowerCase()}`, email, password: "RegistrationPassword!2026", pin: "2468", locale: "en", currency }, undefined, captureTransport().transport);
 
     const user = database.select().from(users).where(eq(users.email, email)).get();
     expect(database.select().from(accounts).where(eq(accounts.userId, user!.id)).get()).toMatchObject({ currency, balanceMinor: 0 });
@@ -80,13 +80,13 @@ describe("email-backed authentication", () => {
     const { messages, transport } = captureTransport();
 
     await registerUser(
-      { name: "Ready User", email: "ready@example.test", password: "ReadyPassword!2026", pin: "2468", locale: "ja", currency: "JPY" },
+      { name: "Ready User", username: "ready.user", email: "ready@example.test", password: "ReadyPassword!2026", pin: "2468", locale: "ja", currency: "JPY" },
       { ipAddress: "203.0.113.8", userAgent: "Mobile Registration Browser" },
       transport,
     );
 
     let user = database.select().from(users).where(eq(users.email, "ready@example.test")).get();
-    expect(user).toMatchObject({ status: "pending", locale: "ja", emailVerifiedAt: null });
+    expect(user).toMatchObject({ username: "ready.user", status: "pending", locale: "ja", emailVerifiedAt: null });
     expect(database.select().from(accounts).where(eq(accounts.userId, user!.id)).get()).toMatchObject({ number: expect.stringMatching(/^\d{10}$/), currency: "JPY" });
     expect(database.select().from(authenticationTokens).where(eq(authenticationTokens.userId, user!.id)).all()).toHaveLength(1);
     expect(database.select().from(userProfiles).where(eq(userProfiles.userId, user!.id)).get()).toBeUndefined();
@@ -95,7 +95,7 @@ describe("email-backed authentication", () => {
     expect(messages).toHaveLength(1);
     expect(messages[0].text).toContain("https://citizavrexo.com/verify-email?token=");
 
-    const { verifyRegisteredEmail } = await import("./auth-service");
+    const { loginUser, verifyRegisteredEmail } = await import("./auth-service");
     const verificationToken = actionTokenFrom(messages[0]);
     expect(() => verifyRegisteredEmail(verificationToken, "wrong@example.test")).toThrow("invalid or expired");
     verifyRegisteredEmail(verificationToken, "READY@EXAMPLE.TEST");
@@ -104,11 +104,12 @@ describe("email-backed authentication", () => {
     expect(user?.emailVerifiedAt).toBeTruthy();
     expect(database.select().from(notifications).where(eq(notifications.eventReference, `WELCOME-${user!.id}`)).get()?.title).toBe("Welcome to CITIZAVREXO");
     expect(() => verifyRegisteredEmail(verificationToken, "ready@example.test")).toThrow("invalid or expired");
+    await expect(loginUser({ email: "READY.USER", password: "ReadyPassword!2026", persistent: false })).resolves.toBeUndefined();
   });
 
   it("rejects a duplicate registration without creating another account or session", async () => {
     const { registerUser } = await import("./auth-service");
-    const input = { name: "Unique User", email: "unique@example.test", password: "UniquePassword!2026", pin: "2468", locale: "en" as const, currency: "GBP" as const };
+    const input = { name: "Unique User", username: "unique.user", email: "unique@example.test", password: "UniquePassword!2026", pin: "2468", locale: "en" as const, currency: "GBP" as const };
     await registerUser(input, undefined, captureTransport().transport);
     const sessionCount = database.select().from(sessions).all().length;
 
@@ -117,11 +118,21 @@ describe("email-backed authentication", () => {
     expect(database.select().from(sessions).all()).toHaveLength(sessionCount);
   });
 
+  it("rejects a duplicate normalized username with a different email", async () => {
+    const { registerUser } = await import("./auth-service");
+    const first = { name: "First User", username: "shared.user", email: "first-user@example.test", password: "UniquePassword!2026", pin: "2468", locale: "en" as const, currency: "USD" as const };
+    const second = { ...first, name: "Second User", username: "SHARED.USER", email: "second-user@example.test" };
+
+    await registerUser(first, undefined, captureTransport().transport);
+    await expect(registerUser(second, undefined, captureTransport().transport)).rejects.toThrow("Unable to create account");
+    expect(database.select().from(users).where(eq(users.username, "shared.user")).all()).toHaveLength(1);
+  });
+
   it("preserves a pending account after uncertain delivery and rotates its verification link", async () => {
     const { registerUser, requestEmailVerification, verifyRegisteredEmail } = await import("./auth-service");
     const email = "delivery-independent@example.test";
     const failedTransport = { send: vi.fn(async () => { throw new Error("provider unavailable"); }) };
-    await expect(registerUser({ name: "Delivery Independent", email, password: "DeliveryPassword!2026", pin: "2468", locale: "en", currency: "USD" }, undefined, failedTransport)).rejects.toThrow("account remains pending");
+    await expect(registerUser({ name: "Delivery Independent", username: "delivery.independent", email, password: "DeliveryPassword!2026", pin: "2468", locale: "en", currency: "USD" }, undefined, failedTransport)).rejects.toThrow("account remains pending");
 
     const user = database.select().from(users).where(eq(users.email, email)).get()!;
     const originalToken = database.select().from(authenticationTokens).where(eq(authenticationTokens.userId, user.id)).get()!;

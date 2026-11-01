@@ -11,6 +11,7 @@ const timestamps = {
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
+  username: text("username"),
   email: text("email").notNull(),
   avatarInitials: text("avatar_initials").notNull(),
   status: text("status", { enum: ["active", "suspended", "pending", "deleted"] }).notNull(),
@@ -25,7 +26,10 @@ export const users = sqliteTable("users", {
   suspendedAt: text("suspended_at"),
   deletedAt: text("deleted_at"),
   ...timestamps,
-}, (table) => [uniqueIndex("users_email_unique").on(table.email)]);
+}, (table) => [
+  uniqueIndex("users_email_unique").on(table.email),
+  uniqueIndex("users_username_unique").on(table.username),
+]);
 
 export const credentials = sqliteTable("credentials", {
   userId: text("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),

@@ -34,6 +34,7 @@ export type WithdrawalAuthorizationCodeStatus = "issued" | "verified" | "revoked
 export interface User {
   id: string;
   name: string;
+  username: string;
   email: string;
   avatarInitials: string;
   profileImageUrl?: string;
@@ -127,6 +128,7 @@ export interface TransactionAuthorizationRequest {
   reference: string;
   userId: string;
   userName: string;
+  userUsername: string;
   userEmail: string;
   senderAccountName: string;
   senderAccountNumber: string;

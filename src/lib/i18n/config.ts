@@ -18,4 +18,4 @@ export function resolveSupportedLocale(value?: string | null): Locale {
   return SUPPORTED_LOCALES.find((locale) => locale.toLowerCase() === language) ?? "en";
 }
 
-export const REGISTRATION_LOCALES = ["en", "ko", "ja", "zh-CN", "zh-TW"] as const satisfies readonly Locale[];
+export const REGISTRATION_LOCALES = SUPPORTED_LOCALES;

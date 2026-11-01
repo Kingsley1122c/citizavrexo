@@ -10,27 +10,29 @@ import { SUPPORTED_LOCALES } from "@/lib/i18n/config";
 import { SUPPORTED_CURRENCIES } from "@/lib/currency";
 import { isTransactionalEmailConfigured } from "@/lib/notifications/resend-transport";
 import { passwordSchema } from "@/lib/auth/password-policy";
+import { usernameSchema } from "@/lib/auth/username-policy";
 
 export type AuthState = { error?: string; success?: string };
 const email = z.string().trim().email().max(254);
 const requestMetadata = async () => { const requestHeaders = await headers(); return { ipAddress: requestHeaders.get("x-real-ip") ?? undefined, userAgent: requestHeaders.get("user-agent") ?? undefined }; };
 
 export async function loginAction(_: AuthState, formData: FormData): Promise<AuthState> {
-  const parsed = z.object({ email, password: passwordSchema, persistent: z.boolean() }).safeParse({ email: formData.get("email"), password: formData.get("password"), persistent: formData.get("persistent") === "on" });
+  const parsed = z.object({ email: z.string().trim().min(3).max(254), password: passwordSchema, persistent: z.boolean() }).safeParse({ email: formData.get("email"), password: formData.get("password"), persistent: formData.get("persistent") === "on" });
   if (!parsed.success) return { error: "Check your details and try again." };
   if (!consumeAuthRateLimit("login", parsed.data.email)) return { error: "Too many attempts. Please try again later." };
-  try { await loginUser(parsed.data, await requestMetadata()); } catch { return { error: "Invalid email or password." }; }
+  try { await loginUser(parsed.data, await requestMetadata()); } catch { return { error: "Invalid email, username, or password." }; }
   await clearAuthRateLimit("login", parsed.data.email);
   redirect("/app");
 }
 
 export async function registerAction(_: AuthState, formData: FormData): Promise<AuthState> {
-  const parsed = z.object({ name: z.string().trim().min(2).max(100).regex(/^[^\p{Cc}\p{Cf}]+$/u), email, password: passwordSchema, pin: z.string().regex(/^\d{4}$/), confirmation: z.string().regex(/^\d{4}$/), locale: z.enum(SUPPORTED_LOCALES), currency: z.enum(SUPPORTED_CURRENCIES) }).safeParse({ name: formData.get("name"), email: formData.get("email"), password: formData.get("password"), pin: formData.get("pin"), confirmation: formData.get("confirmation"), locale: formData.get("locale"), currency: formData.get("currency") });
-  if (!parsed.success) return { error: "Use a valid name, email, password, and exactly 4-digit transaction PIN." };
-  if (parsed.data.pin !== parsed.data.confirmation) return { error: "Transaction PINs do not match." };
+  const parsed = z.object({ name: z.string().trim().min(2).max(100).regex(/^[^\p{Cc}\p{Cf}]+$/u), username: usernameSchema, email, password: passwordSchema, passwordConfirmation: passwordSchema, pin: z.string().regex(/^\d{4}$/), pinConfirmation: z.string().regex(/^\d{4}$/), locale: z.enum(SUPPORTED_LOCALES), currency: z.enum(SUPPORTED_CURRENCIES) }).safeParse({ name: formData.get("name"), username: formData.get("username"), email: formData.get("email"), password: formData.get("password"), passwordConfirmation: formData.get("passwordConfirmation"), pin: formData.get("pin"), pinConfirmation: formData.get("pinConfirmation"), locale: formData.get("locale"), currency: formData.get("currency") });
+  if (!parsed.success) return { error: "Use a valid name, username, email, password, and exactly 4-digit transaction PIN." };
+  if (parsed.data.password !== parsed.data.passwordConfirmation) return { error: "Passwords do not match." };
+  if (parsed.data.pin !== parsed.data.pinConfirmation) return { error: "Transaction PINs do not match." };
   if (!isTransactionalEmailConfigured()) return { error: "Registration cannot currently be completed because email verification delivery is unavailable. No account was created." };
   if (!consumeAuthRateLimit("register", parsed.data.email)) return { error: "Too many attempts. Please try again later." };
-  try { await registerUser({ name: parsed.data.name, email: parsed.data.email, password: parsed.data.password, pin: parsed.data.pin, locale: parsed.data.locale, currency: parsed.data.currency }, await requestMetadata()); } catch { return { error: "We couldn't confirm verification delivery. If your account is pending, request a new verification link." }; }
+  try { await registerUser({ name: parsed.data.name, username: parsed.data.username, email: parsed.data.email, password: parsed.data.password, pin: parsed.data.pin, locale: parsed.data.locale, currency: parsed.data.currency }, await requestMetadata()); } catch { return { error: "We couldn't confirm verification delivery. If your account is pending, request a new verification link." }; }
   return { success: "Verification email accepted for delivery. Check your inbox to continue." };
 }
 

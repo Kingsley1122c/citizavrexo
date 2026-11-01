@@ -3,10 +3,14 @@
 import Link from "next/link";
 import {
   ArrowRight,
+  AtSign,
+  Check,
+  ChevronLeft,
   Eye,
   Globe2,
   LockKeyhole,
   Mail,
+  Search,
   ShieldCheck,
   UserRound,
 } from "lucide-react";
@@ -24,14 +28,6 @@ import { CurrencySelector } from "@/components/currency-selector";
 import { BrandLogo } from "@/components/brand-logo";
 
 type AuthAction = (state: AuthState, formData: FormData) => Promise<AuthState>;
-const localeIdentifiers: Record<(typeof REGISTRATION_LOCALES)[number], string> = {
-  en: "EN",
-  ko: "한",
-  ja: "あ",
-  "zh-CN": "简",
-  "zh-TW": "繁",
-};
-
 export function AuthPanel({
   mode,
   action,
@@ -43,6 +39,10 @@ export function AuthPanel({
 }) {
   const [show, setShow] = useState(false);
   const [showPin, setShowPin] = useState(false);
+  const [registrationStep, setRegistrationStep] = useState(1);
+  const [languageQuery, setLanguageQuery] = useState("");
+  const [registration, setRegistration] = useState({ name: "", username: "", email: "", password: "", passwordConfirmation: "", pin: "", pinConfirmation: "" });
+  const formRef = useRef<HTMLFormElement>(null);
   const [locale, setLocale] = useState<Locale>("en");
   const localeHydrated = useRef(false);
   const [state, formAction, pending] = useActionState(action, {});
@@ -67,6 +67,14 @@ export function AuthPanel({
     register: [t.auth.registerTitle, t.auth.registerSubtitle, t.auth.createAccount],
     reset: [t.auth.resetTitle, t.auth.resetSubtitle, t.auth.sendResetLink],
   }[mode];
+  const matchingLocales = REGISTRATION_LOCALES.filter((value) => localeNames[value].toLocaleLowerCase().includes(languageQuery.trim().toLocaleLowerCase()) || value.toLowerCase().includes(languageQuery.trim().toLowerCase()));
+  const updateRegistration = (field: keyof typeof registration, value: string) => setRegistration((current) => ({ ...current, [field]: value }));
+  const continueRegistration = () => {
+    const activeStep = formRef.current?.querySelector<HTMLElement>(`[data-registration-step="${registrationStep}"]`);
+    const invalid = activeStep?.querySelector<HTMLInputElement>("input:invalid");
+    if (invalid) return invalid.reportValidity();
+    setRegistrationStep((step) => Math.min(3, step + 1));
+  };
   return (
     <main className="auth-page">
       <section className="auth-brand">
@@ -86,26 +94,9 @@ export function AuthPanel({
         </footer>
       </section>
       <section className="auth-form-wrap">
-        <form className="auth-form" action={formAction}>
+        <form className="auth-form" action={formAction} ref={formRef}>
           {mode === "register" ? (
-            <fieldset className="registration-language-selector">
-              <legend><Globe2 size={17} />{t.app.language}</legend>
-              <input type="hidden" name="locale" value={locale} />
-              <div>
-                {REGISTRATION_LOCALES.map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    className={locale === value ? "selected" : ""}
-                    aria-pressed={locale === value}
-                    onClick={() => setLocale(value)}
-                  >
-                    <span aria-hidden="true">{localeIdentifiers[value]}</span>
-                    <b>{localeNames[value]}</b>
-                  </button>
-                ))}
-              </div>
-            </fieldset>
+            <input type="hidden" name="locale" value={locale} />
           ) : (
             <label className="locale">
               <Globe2 size={16} />
@@ -128,37 +119,58 @@ export function AuthPanel({
           </span>
           <h2>{content[0]}</h2>
           <p>{content[1]}</p>
+          {mode === "register" && <ol className="registration-progress" aria-label="Registration progress">
+            {["Your details", "Account security", "Transaction PIN"].map((label, index) => <li key={label} className={registrationStep >= index + 1 ? "active" : ""} aria-current={registrationStep === index + 1 ? "step" : undefined}><span>{registrationStep > index + 1 ? <Check size={14} /> : index + 1}</span><b>{label}</b></li>)}
+          </ol>}
           {mode === "register" && (
             <>
-              <label>
-                {t.auth.fullName}
-                <span>
-                  <UserRound size={17} />
-                  <input
-                    name="name"
-                    autoComplete="name"
-                    placeholder={t.auth.fullNamePlaceholder}
-                    required
-                  />
-                </span>
-              </label>
-              <CurrencySelector disabled={pending} />
+              <fieldset className="registration-step" data-registration-step="1" hidden={registrationStep !== 1}>
+                <legend className="sr-only">Language and personal information</legend>
+                <div className="registration-language-selector">
+                  <b><Globe2 size={17} />{t.app.language}</b>
+                  <label className="language-search"><Search size={16} /><span className="sr-only">Search languages</span><input value={languageQuery} onChange={(event) => setLanguageQuery(event.target.value)} placeholder="Search languages" autoComplete="off" /></label>
+                  <div className="language-options">
+                    {matchingLocales.map((value) => <button key={value} type="button" className={locale === value ? "selected" : ""} aria-pressed={locale === value} onClick={() => setLocale(value)}><span aria-hidden="true">{value.split("-")[0].toUpperCase()}</span><b>{localeNames[value]}</b></button>)}
+                  </div>
+                </div>
+                <label>{t.auth.fullName}<span><UserRound size={17} /><input name="name" autoComplete="name" placeholder={t.auth.fullNamePlaceholder} value={registration.name} onChange={(event) => updateRegistration("name", event.target.value)} required minLength={2} maxLength={100} /></span></label>
+                <label>Username<span><AtSign size={17} /><input name="username" autoComplete="username" placeholder="your.username" value={registration.username} onChange={(event) => updateRegistration("username", event.target.value)} required minLength={3} maxLength={30} pattern="[A-Za-z0-9](?:[A-Za-z0-9._]*[A-Za-z0-9])?" /></span><small>Use 3–30 letters, numbers, periods, or underscores.</small></label>
+                <label>{t.auth.emailAddress}<span><Mail size={17} /><input name="email" type="email" autoComplete="email" placeholder="you@example.com" value={registration.email} onChange={(event) => updateRegistration("email", event.target.value)} required /></span></label>
+                <button type="button" className="button primary auth-submit" onClick={continueRegistration}>Continue <ArrowRight size={18} /></button>
+              </fieldset>
+              <fieldset className="registration-step" data-registration-step="2" hidden={registrationStep !== 2}>
+                <legend className="sr-only">Account currency and password</legend>
+                <CurrencySelector disabled={pending} />
+                <label>{t.auth.password}<span><LockKeyhole size={17} /><input name="password" type={show ? "text" : "password"} autoComplete="new-password" placeholder={t.auth.passwordPlaceholder} value={registration.password} onChange={(event) => updateRegistration("password", event.target.value)} required minLength={8} maxLength={128} /><button type="button" aria-label={show ? t.auth.hidePassword : t.auth.showPassword} onClick={() => setShow(!show)}><Eye size={17} /></button></span><small>Use at least 8 characters. No special format is required.</small></label>
+                <label>Confirm password<span><LockKeyhole size={17} /><input name="passwordConfirmation" type={show ? "text" : "password"} autoComplete="new-password" value={registration.passwordConfirmation} onChange={(event) => updateRegistration("passwordConfirmation", event.target.value)} required minLength={8} maxLength={128} /></span></label>
+                <div className="registration-actions"><button type="button" className="button secondary" onClick={() => setRegistrationStep(1)}><ChevronLeft size={18} /> Back</button><button type="button" className="button primary" onClick={continueRegistration}>Continue <ArrowRight size={18} /></button></div>
+              </fieldset>
+              <fieldset className="registration-step" data-registration-step="3" hidden={registrationStep !== 3}>
+                <legend className="sr-only">Transaction PIN and review</legend>
+                <div className="registration-pin-note"><ShieldCheck size={20} /><span><b>Create a transaction PIN</b><small>This 4-digit PIN protects your transactions. Never share it with anyone.</small></span></div>
+                <label>{t.app.securityView.transactionPin}<span><LockKeyhole size={17} /><input name="pin" type={showPin ? "text" : "password"} inputMode="numeric" pattern="[0-9]{4}" minLength={4} maxLength={4} autoComplete="new-password" placeholder="0000" value={registration.pin} onChange={(event) => updateRegistration("pin", event.target.value)} required /><button type="button" aria-label={showPin ? t.auth.hidePassword : t.auth.showPassword} onClick={() => setShowPin(!showPin)}><Eye size={17} /></button></span></label>
+                <label>Confirm {t.app.securityView.transactionPin}<span><LockKeyhole size={17} /><input name="pinConfirmation" type={showPin ? "text" : "password"} inputMode="numeric" pattern="[0-9]{4}" minLength={4} maxLength={4} autoComplete="new-password" placeholder="0000" value={registration.pinConfirmation} onChange={(event) => updateRegistration("pinConfirmation", event.target.value)} required /></span></label>
+                <dl className="registration-review"><div><dt>Name</dt><dd>{registration.name}</dd></div><div><dt>Username</dt><dd>@{registration.username.toLowerCase()}</dd></div><div><dt>Email</dt><dd>{registration.email}</dd></div><div><dt>Language</dt><dd>{localeNames[locale]}</dd></div></dl>
+                {state.error && localizeAuthStateMessage(locale, state.error) && <p className="auth-message error" role="alert">{localizeAuthStateMessage(locale, state.error)}</p>}
+                {state.success && <p className="auth-message success" role="status">{localizeAuthStateMessage(locale, state.success)}</p>}
+                <div className="registration-actions"><button type="button" className="button secondary" disabled={pending} onClick={() => setRegistrationStep(2)}><ChevronLeft size={18} /> Back</button><button className="button primary" disabled={pending || unavailable} aria-busy={pending}>{pending ? "Creating account..." : content[2]} <ArrowRight size={18} /></button></div>
+              </fieldset>
             </>
           )}
-          <label>
-            {t.auth.emailAddress}
+          {mode !== "register" && <label>
+            {mode === "login" ? "Email address or username" : t.auth.emailAddress}
             <span>
               <Mail size={17} />
               <input
                 name="email"
-                type="email"
-                autoComplete="email"
-                placeholder="you@example.com"
+                type={mode === "login" ? "text" : "email"}
+                autoComplete={mode === "login" ? "username" : "email"}
+                placeholder={mode === "login" ? "Email or username" : "you@example.com"}
                 required
               />
             </span>
-          </label>
-          {mode !== "reset" && (
+          </label>}
+          {mode === "login" && (
             <label>
               {t.auth.password}
               <span>
@@ -180,47 +192,6 @@ export function AuthPanel({
               </span>
             </label>
           )}
-          {mode === "register" && (
-            <>
-              <label>
-                {t.app.securityView.transactionPin}
-                <span>
-                  <LockKeyhole size={17} />
-                  <input
-                    name="pin"
-                    type={showPin ? "text" : "password"}
-                    inputMode="numeric"
-                    pattern="[0-9]{4}"
-                    minLength={4}
-                    maxLength={4}
-                    autoComplete="new-password"
-                    placeholder="0000"
-                    required
-                  />
-                  <button type="button" aria-label={showPin ? t.auth.hidePassword : t.auth.showPassword} onClick={() => setShowPin(!showPin)}>
-                    <Eye size={17} />
-                  </button>
-                </span>
-              </label>
-              <label>
-                {`Confirm ${t.app.securityView.transactionPin}`}
-                <span>
-                  <LockKeyhole size={17} />
-                  <input
-                    name="confirmation"
-                    type={showPin ? "text" : "password"}
-                    inputMode="numeric"
-                    pattern="[0-9]{4}"
-                    minLength={4}
-                    maxLength={4}
-                    autoComplete="new-password"
-                    placeholder="0000"
-                    required
-                  />
-                </span>
-              </label>
-            </>
-          )}
           {mode === "login" && (
             <div className="auth-options">
               <label>
@@ -230,21 +201,21 @@ export function AuthPanel({
               <Link href="/forgot-password">{t.auth.forgotPassword}</Link>
             </div>
           )}
-          {state.error && localizeAuthStateMessage(locale, state.error) && (
+          {mode !== "register" && state.error && localizeAuthStateMessage(locale, state.error) && (
             <p className="auth-message error" role="alert">
               {localizeAuthStateMessage(locale, state.error)}
             </p>
           )}
-          {state.success && localizeAuthStateMessage(locale, state.success) && (
+          {mode !== "register" && state.success && localizeAuthStateMessage(locale, state.success) && (
             <p className="auth-message success" role="status">
               {localizeAuthStateMessage(locale, state.success)}
             </p>
           )}
           {unavailable && <p className="auth-message" role="status">{t.auth.registrationUnavailable}</p>}
-          <button className="button primary auth-submit" disabled={pending || unavailable} aria-busy={pending}>
-            {pending ? mode === "login" ? "Signing in..." : mode === "register" ? "Creating account..." : "Sending recovery email..." : unavailable ? t.auth.registrationUnavailableAction : content[2]}
+          {mode !== "register" && <button className="button primary auth-submit" disabled={pending || unavailable} aria-busy={pending}>
+            {pending ? mode === "login" ? "Signing in..." : "Sending recovery email..." : unavailable ? t.auth.registrationUnavailableAction : content[2]}
             <ArrowRight size={18} />
-          </button>
+          </button>}
           <div className="auth-switch">
             {mode === "login" ? (
               <>

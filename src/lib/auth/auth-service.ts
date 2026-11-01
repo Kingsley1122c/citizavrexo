@@ -1,7 +1,7 @@
 ﻿import "server-only";
 
 import { randomBytes, randomUUID } from "node:crypto";
-import { and, eq, gt, inArray, isNull, ne } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, ne, or } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db/client";
 import { accounts, auditEvents, authenticationTokens, credentials, emailOutbox, recoveryRequests, sessions, users } from "@/lib/db/schema";
@@ -17,6 +17,7 @@ import { deriveActionToken, hashActionToken } from "./action-token";
 import { createSession } from "./session-service";
 import { hashTransactionPin } from "@/lib/security/transaction-pin-service";
 import { passwordSchema } from "./password-policy";
+import { usernameSchema } from "./username-policy";
 
 const initials = (name: string) => name.split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("");
 const passwordOptions = { memoryCost: 19456, timeCost: 2, parallelism: 1 };
@@ -26,13 +27,14 @@ const safeName = z.string().trim().min(2).max(100).regex(/^[^\p{Cc}\p{Cf}]+$/u);
 type SessionRequest = { ipAddress?: string; userAgent?: string };
 export class VerificationEmailDeliveryError extends Error {}
 
-export async function registerUser(input: { name: string; email: string; password: string; pin: string; locale: Locale; currency: Currency }, _request?: SessionRequest, transport?: EmailTransport): Promise<void> {
+export async function registerUser(input: { name: string; username: string; email: string; password: string; pin: string; locale: Locale; currency: Currency }, _request?: SessionRequest, transport?: EmailTransport): Promise<void> {
   if (!transport) requireTransactionalEmailConfiguration();
   const deliveryTransport = transport ?? resendEmailTransport;
   const name = safeName.parse(input.name);
+  const username = usernameSchema.parse(input.username);
   const password = passwordSchema.parse(input.password);
   const email = input.email.trim().toLowerCase();
-  const existing = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
+  const existing = await db.select({ id: users.id }).from(users).where(or(eq(users.email, email), eq(users.username, username))).limit(1);
   if (existing.length) throw new Error("Unable to create account.");
   const userId = randomUUID(); const now = new Date().toISOString();
   const tokenId = randomUUID();
@@ -42,7 +44,7 @@ export async function registerUser(input: { name: string; email: string; passwor
   const transactionPinHash = await hashTransactionPin(input.pin);
   db.transaction((tx) => {
     const accountNumber = generateAccountNumber((number) => Boolean(tx.select({ id: accounts.id }).from(accounts).where(eq(accounts.number, number)).get()));
-    tx.insert(users).values({ id: userId, name, email, avatarInitials: initials(name), status: "pending", locale: input.locale, displayCurrency: input.currency, createdAt: now, updatedAt: now }).run();
+    tx.insert(users).values({ id: userId, name, username, email, avatarInitials: initials(name), status: "pending", locale: input.locale, displayCurrency: input.currency, createdAt: now, updatedAt: now }).run();
     tx.insert(credentials).values({ userId, passwordHash, transactionPinHash, passwordChangedAt: now }).run();
     tx.insert(accounts).values({ id: randomUUID(), userId, name: "Personal Account", number: accountNumber, type: "personal", currency: input.currency, balanceMinor: 0, status: "active", createdAt: now, updatedAt: now }).run();
     tx.insert(authenticationTokens).values({ id: tokenId, userId, purpose: "email_verification", tokenHash: hashActionToken(verificationToken), expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(), createdAt: now }).run();
@@ -104,12 +106,12 @@ export function verifyRegisteredEmail(verificationToken: string, emailInput: str
 }
 
 export async function loginUser(input: { email: string; password: string; persistent: boolean }, request?: SessionRequest): Promise<void> {
-  const email = input.email.trim().toLowerCase();
-  const [row] = await db.select({ user: users, credential: credentials }).from(users).innerJoin(credentials, eq(users.id, credentials.userId)).where(eq(users.email, email)).limit(1);
+  const identifier = input.email.trim().toLowerCase();
+  const [row] = await db.select({ user: users, credential: credentials }).from(users).innerJoin(credentials, eq(users.id, credentials.userId)).where(or(eq(users.email, identifier), eq(users.username, identifier))).limit(1);
   const valid = row ? await verifyPassword(row.credential.passwordHash, input.password) : false;
   if (!row || !valid || row.user.status !== "active") {
-    await db.insert(auditEvents).values({ id: `AUD-${randomUUID()}`, actorLabel: email || "unknown", action: "login", target: email || "unknown", result: "denied", metadataJson: "{}", timestamp: new Date().toISOString() });
-    throw new Error("Invalid email or password.");
+    await db.insert(auditEvents).values({ id: `AUD-${randomUUID()}`, actorLabel: identifier || "unknown", action: "login", target: identifier || "unknown", result: "denied", metadataJson: "{}", timestamp: new Date().toISOString() });
+    throw new Error("Invalid email, username, or password.");
   }
   await createSession(row.user.id, input.persistent, request);
   await db.insert(auditEvents).values({ id: `AUD-${randomUUID()}`, actorId: row.user.id, actorLabel: row.user.email, action: "login", target: row.user.id, result: "success", metadataJson: "{}", timestamp: new Date().toISOString() });

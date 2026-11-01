@@ -32,10 +32,12 @@ import { isTransactionalEmailConfigured } from "@/lib/notifications/resend-trans
 const validRegistration = () => {
   const formData = new FormData();
   formData.set("name", "Registration Test");
+  formData.set("username", "Registration.Test");
   formData.set("email", "registration@example.test");
   formData.set("password", "TestPassword!2026");
+  formData.set("passwordConfirmation", "TestPassword!2026");
   formData.set("pin", "2468");
-  formData.set("confirmation", "2468");
+  formData.set("pinConfirmation", "2468");
   formData.set("locale", "en");
   formData.set("currency", "USD");
   return formData;
@@ -52,7 +54,7 @@ describe("registerAction", () => {
     formData.delete("currency");
 
     await expect(registerAction({}, formData)).resolves.toEqual({
-      error: "Use a valid name, email, password, and exactly 4-digit transaction PIN.",
+      error: "Use a valid name, username, email, password, and exactly 4-digit transaction PIN.",
     });
     expect(registerUser).not.toHaveBeenCalled();
   });
@@ -62,7 +64,7 @@ describe("registerAction", () => {
     formData.delete("pin");
 
     await expect(registerAction({}, formData)).resolves.toEqual({
-      error: "Use a valid name, email, password, and exactly 4-digit transaction PIN.",
+      error: "Use a valid name, username, email, password, and exactly 4-digit transaction PIN.",
     });
     expect(registerUser).not.toHaveBeenCalled();
   });
@@ -72,14 +74,14 @@ describe("registerAction", () => {
     formData.set("pin", "12a4");
 
     await expect(registerAction({}, formData)).resolves.toEqual({
-      error: "Use a valid name, email, password, and exactly 4-digit transaction PIN.",
+      error: "Use a valid name, username, email, password, and exactly 4-digit transaction PIN.",
     });
     expect(registerUser).not.toHaveBeenCalled();
   });
 
   it("rejects mismatched transaction PIN confirmation", async () => {
     const formData = validRegistration();
-    formData.set("confirmation", "1357");
+    formData.set("pinConfirmation", "1357");
 
     await expect(registerAction({}, formData)).resolves.toEqual({
       error: "Transaction PINs do not match.",
@@ -99,7 +101,7 @@ describe("registerAction", () => {
     vi.mocked(registerUser).mockResolvedValueOnce(undefined);
 
     await expect(registerAction({}, validRegistration())).resolves.toEqual({ success: "Verification email accepted for delivery. Check your inbox to continue." });
-    expect(registerUser).toHaveBeenCalledWith(expect.objectContaining({ email: "registration@example.test", currency: "USD", pin: "2468" }), {
+    expect(registerUser).toHaveBeenCalledWith(expect.objectContaining({ username: "registration.test", email: "registration@example.test", currency: "USD", pin: "2468" }), {
       ipAddress: "203.0.113.4",
       userAgent: "Registration Test Browser",
     });
@@ -109,16 +111,25 @@ describe("registerAction", () => {
   it("accepts an 8-character password without composition requirements", async () => {
     const formData = validRegistration();
     formData.set("password", "abcdefgh");
+    formData.set("passwordConfirmation", "abcdefgh");
 
     await expect(registerAction({}, formData)).resolves.toEqual({ success: "Verification email accepted for delivery. Check your inbox to continue." });
     expect(registerUser).toHaveBeenCalledWith(expect.objectContaining({ password: "abcdefgh" }), expect.any(Object));
+  });
+
+  it("rejects mismatched password confirmation", async () => {
+    const formData = validRegistration();
+    formData.set("passwordConfirmation", "different-password");
+
+    await expect(registerAction({}, formData)).resolves.toEqual({ error: "Passwords do not match." });
+    expect(registerUser).not.toHaveBeenCalled();
   });
 
   it("rejects passwords shorter than 8 characters", async () => {
     const formData = validRegistration();
     formData.set("password", "abcdefg");
 
-    await expect(registerAction({}, formData)).resolves.toEqual({ error: "Use a valid name, email, password, and exactly 4-digit transaction PIN." });
+    await expect(registerAction({}, formData)).resolves.toEqual({ error: "Use a valid name, username, email, password, and exactly 4-digit transaction PIN." });
     expect(registerUser).not.toHaveBeenCalled();
   });
 

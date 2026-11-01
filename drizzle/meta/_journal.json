@@ -141,6 +141,13 @@
       "when": 1791086400000,
       "tag": "0019_transaction_authorization",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791172800000,
+      "tag": "0020_usernames",
+      "breakpoints": true
     }
   ]
 }
