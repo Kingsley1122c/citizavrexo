@@ -63,7 +63,7 @@ export function localizeAuthStateMessage(locale: Locale, message?: string): stri
     "Registration cannot currently be completed because email verification delivery is unavailable. No account was created.": t.auth.registrationUnavailable,
     "We couldn't create that account. Please try again.": t.messages.genericAuthError,
     "We couldn't confirm verification delivery. If your account is pending, request a new verification link.": t.messages.genericAuthError,
-    "Verification email accepted for delivery. Check your inbox to continue.": t.auth.resetSubtitle,
+    "Verification email accepted for delivery. Check your inbox to continue.": message,
     "Email delivery is unavailable. No recovery email was sent.": t.auth.recoveryOptionsUnavailable,
     "This reset link is invalid or the password is too short.": t.auth.resetSubtitle,
     "This reset link is invalid or expired.": t.auth.resetSubtitle,

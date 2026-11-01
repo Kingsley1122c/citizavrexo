@@ -20,10 +20,11 @@ vi.mock("@/lib/auth/auth-service", () => ({
   requestEmailVerification: vi.fn(),
   requestPasswordReset: vi.fn(),
   resetPasswordWithToken: vi.fn(),
+  verifyRegisteredEmail: vi.fn(),
 }));
 
-import { registerAction, resendVerificationAction, resetAction } from "./auth-actions";
-import { registerUser, requestEmailVerification, requestPasswordReset } from "@/lib/auth/auth-service";
+import { registerAction, resendVerificationAction, resetAction, verifyEmailAction } from "./auth-actions";
+import { registerUser, requestEmailVerification, requestPasswordReset, verifyRegisteredEmail } from "@/lib/auth/auth-service";
 import { consumeAuthRateLimit } from "@/lib/auth/rate-limit-service";
 import { redirect } from "next/navigation";
 import { isTransactionalEmailConfigured } from "@/lib/notifications/resend-transport";
@@ -163,6 +164,28 @@ describe("resendVerificationAction", () => {
     await expect(resendVerificationAction(formData)).rejects.toThrow("NEXT_REDIRECT");
     expect(requestEmailVerification).not.toHaveBeenCalled();
     expect(redirect).toHaveBeenCalledWith("/verify-email?resend=requested");
+  });
+});
+
+describe("verifyEmailAction", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("consumes a validated token only after explicit form submission", async () => {
+    const formData = new FormData();
+    formData.set("token", "a".repeat(64));
+
+    await expect(verifyEmailAction(formData)).rejects.toThrow("NEXT_REDIRECT");
+    expect(verifyRegisteredEmail).toHaveBeenCalledWith("a".repeat(64));
+    expect(redirect).toHaveBeenCalledWith("/verify-email?verified=success");
+  });
+
+  it("does not call verification for an invalid token", async () => {
+    const formData = new FormData();
+    formData.set("token", "short");
+
+    await expect(verifyEmailAction(formData)).rejects.toThrow("NEXT_REDIRECT");
+    expect(verifyRegisteredEmail).not.toHaveBeenCalled();
+    expect(redirect).toHaveBeenCalledWith("/verify-email?verified=invalid");
   });
 });
 

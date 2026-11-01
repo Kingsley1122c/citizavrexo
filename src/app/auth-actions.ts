@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { z } from "zod";
-import { loginUser, registerUser, requestEmailVerification, requestPasswordReset, resetPasswordWithToken } from "@/lib/auth/auth-service";
+import { loginUser, registerUser, requestEmailVerification, requestPasswordReset, resetPasswordWithToken, verifyRegisteredEmail } from "@/lib/auth/auth-service";
 import { revokeCurrentSession } from "@/lib/auth/session-service";
 import { clearAuthRateLimit, consumeAuthRateLimit } from "@/lib/auth/rate-limit-service";
 import { SUPPORTED_LOCALES } from "@/lib/i18n/config";
@@ -45,6 +45,17 @@ export async function resendVerificationAction(formData: FormData): Promise<void
     try { await requestEmailVerification(parsed.data); } catch {}
   }
   redirect("/verify-email?resend=requested");
+}
+
+export async function verifyEmailAction(formData: FormData): Promise<void> {
+  const parsed = z.string().min(32).max(128).safeParse(formData.get("token"));
+  if (!parsed.success) redirect("/verify-email?verified=invalid");
+  try {
+    verifyRegisteredEmail(parsed.data);
+  } catch {
+    redirect("/verify-email?verified=invalid");
+  }
+  redirect("/verify-email?verified=success");
 }
 
 export async function completePasswordResetAction(_: AuthState, formData: FormData): Promise<AuthState> {
