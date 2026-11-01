@@ -5,11 +5,12 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { authRateLimits } from "@/lib/db/schema";
 
-export type AuthRateLimitScope = "login" | "register" | "email_verification" | "password_reset" | "admin_transfer" | "admin_transfer_verify" | "admin_message" | "admin_sensitive" | "transaction_pin" | "transaction_authorization" | "email_delivery" | "withdrawal_authorization";
+export type AuthRateLimitScope = "login" | "register" | "username_availability" | "email_verification" | "password_reset" | "admin_transfer" | "admin_transfer_verify" | "admin_message" | "admin_sensitive" | "transaction_pin" | "transaction_authorization" | "email_delivery" | "withdrawal_authorization";
 
 const limits: Record<AuthRateLimitScope, { attempts: number; windowMs: number }> = {
   login: { attempts: 10, windowMs: 15 * 60 * 1000 },
   register: { attempts: 5, windowMs: 60 * 60 * 1000 },
+  username_availability: { attempts: 120, windowMs: 60 * 60 * 1000 },
   email_verification: { attempts: 3, windowMs: 60 * 60 * 1000 },
   password_reset: { attempts: 3, windowMs: 60 * 60 * 1000 },
   admin_transfer: { attempts: 3, windowMs: 60 * 60 * 1000 },

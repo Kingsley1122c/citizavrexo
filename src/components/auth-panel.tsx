@@ -5,14 +5,17 @@ import {
   ArrowRight,
   AtSign,
   Check,
+  ChevronDown,
   ChevronLeft,
   Eye,
   Globe2,
   LockKeyhole,
   Mail,
+  RefreshCw,
   Search,
   ShieldCheck,
   UserRound,
+  X,
 } from "lucide-react";
 import { useActionState, useEffect, useRef, useState } from "react";
 import type { AuthState } from "@/app/auth-actions";
@@ -28,6 +31,14 @@ import { CurrencySelector } from "@/components/currency-selector";
 import { BrandLogo } from "@/components/brand-logo";
 
 type AuthAction = (state: AuthState, formData: FormData) => Promise<AuthState>;
+type UsernameStatus = "idle" | "checking" | "available" | "taken" | "invalid" | "unavailable";
+const usernamePattern = /^[A-Za-z0-9](?:[A-Za-z0-9._]*[A-Za-z0-9])?$/;
+const normalizeSearch = (value: string) => value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase();
+const localeFlags: Record<Locale, string> = {
+  en: "🇬🇧", fr: "🇫🇷", es: "🇪🇸", pt: "🇵🇹", ja: "🇯🇵", ko: "🇰🇷", "zh-CN": "🇨🇳", "zh-TW": "🇹🇼",
+  th: "🇹🇭", vi: "🇻🇳", id: "🇮🇩", ms: "🇲🇾", hi: "🇮🇳", bn: "🇧🇩",
+};
+
 export function AuthPanel({
   mode,
   action,
@@ -41,7 +52,13 @@ export function AuthPanel({
   const [showPin, setShowPin] = useState(false);
   const [registrationStep, setRegistrationStep] = useState(1);
   const [languageQuery, setLanguageQuery] = useState("");
+  const [languageOpen, setLanguageOpen] = useState(false);
   const [registration, setRegistration] = useState({ name: "", username: "", email: "", password: "", passwordConfirmation: "", pin: "", pinConfirmation: "" });
+  const [usernameEdited, setUsernameEdited] = useState(false);
+  const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>("idle");
+  const [suggestionHistory, setSuggestionHistory] = useState<string[]>([]);
+  const usernameRequestId = useRef(0);
+  const usernameInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const [locale, setLocale] = useState<Locale>("en");
   const localeHydrated = useRef(false);
@@ -61,14 +78,100 @@ export function AuthPanel({
     localStorage.setItem("Citizavrexo-locale", locale);
     document.documentElement.lang = locale;
   }, [locale]);
+  useEffect(() => {
+    if (!languageOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setLanguageOpen(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [languageOpen]);
+  useEffect(() => {
+    if (mode !== "register" || usernameEdited || registration.name.trim().length < 2) return;
+    const requestId = ++usernameRequestId.current;
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      setUsernameStatus("checking");
+      try {
+        const response = await fetch("/api/username", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "suggest", name: registration.name, exclude: [] }), signal: controller.signal });
+        const result = await response.json() as { suggestion?: string | null };
+        if (requestId !== usernameRequestId.current) return;
+        if (!response.ok || !result.suggestion) return setUsernameStatus("unavailable");
+        setRegistration((current) => ({ ...current, username: result.suggestion! }));
+        setSuggestionHistory([result.suggestion]);
+        setUsernameStatus("available");
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        if (requestId === usernameRequestId.current) setUsernameStatus("unavailable");
+      }
+    }, 350);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [mode, registration.name, usernameEdited]);
+  useEffect(() => {
+    if (mode !== "register" || !usernameEdited) return;
+    const username = registration.username.trim();
+    if (!username) return;
+    if (username.length < 3 || username.length > 30 || !usernamePattern.test(username)) return;
+    const requestId = ++usernameRequestId.current;
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      setUsernameStatus("checking");
+      try {
+        const response = await fetch("/api/username", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "check", username }), signal: controller.signal });
+        const result = await response.json() as { valid?: boolean; available?: boolean };
+        if (requestId !== usernameRequestId.current) return;
+        setUsernameStatus(response.ok && result.valid ? result.available ? "available" : "taken" : "unavailable");
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        if (requestId === usernameRequestId.current) setUsernameStatus("unavailable");
+      }
+    }, 450);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [mode, registration.username, usernameEdited]);
+  useEffect(() => {
+    const input = usernameInputRef.current;
+    if (!input || !registration.username) return;
+    input.setCustomValidity(usernameStatus === "available" ? "" : usernameStatus === "taken" ? "Choose a different username." : usernameStatus === "invalid" ? "Use a valid username." : "Wait for the username availability check.");
+  }, [registration.username, usernameStatus]);
   const t = userUi(locale);
   const content = {
     login: [t.auth.loginTitle, t.auth.loginSubtitle, t.auth.signIn],
     register: [t.auth.registerTitle, t.auth.registerSubtitle, t.auth.createAccount],
     reset: [t.auth.resetTitle, t.auth.resetSubtitle, t.auth.sendResetLink],
   }[mode];
-  const matchingLocales = REGISTRATION_LOCALES.filter((value) => localeNames[value].toLocaleLowerCase().includes(languageQuery.trim().toLocaleLowerCase()) || value.toLowerCase().includes(languageQuery.trim().toLowerCase()));
+  const normalizedLanguageQuery = normalizeSearch(languageQuery.trim());
+  const matchingLocales = REGISTRATION_LOCALES.filter((value) => normalizeSearch(localeNames[value]).includes(normalizedLanguageQuery) || value.toLowerCase().includes(normalizedLanguageQuery));
   const updateRegistration = (field: keyof typeof registration, value: string) => setRegistration((current) => ({ ...current, [field]: value }));
+  const generateAnotherUsername = async () => {
+    if (registration.name.trim().length < 2) return;
+    const requestId = ++usernameRequestId.current;
+    setUsernameStatus("checking");
+    try {
+      const exclude = [...new Set([...suggestionHistory, registration.username].filter(Boolean))].slice(-10);
+      const response = await fetch("/api/username", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "suggest", name: registration.name, exclude }) });
+      const result = await response.json() as { suggestion?: string | null };
+      if (requestId !== usernameRequestId.current) return;
+      if (!response.ok || !result.suggestion) return setUsernameStatus("unavailable");
+      setRegistration((current) => ({ ...current, username: result.suggestion! }));
+      setSuggestionHistory((current) => [...current, result.suggestion!].slice(-10));
+      setUsernameStatus("available");
+    } catch {
+      if (requestId === usernameRequestId.current) setUsernameStatus("unavailable");
+    }
+  };
+  const usernameStatusText = {
+    idle: "A readable username will be suggested from your name.",
+    checking: "Checking availability...",
+    available: "Username is available.",
+    taken: "That username is already taken. Generate another or edit it.",
+    invalid: "Use 3–30 letters, numbers, periods, or underscores.",
+    unavailable: "Availability could not be checked. Please try again.",
+  }[usernameStatus];
   const continueRegistration = () => {
     const activeStep = formRef.current?.querySelector<HTMLElement>(`[data-registration-step="${registrationStep}"]`);
     const invalid = activeStep?.querySelector<HTMLInputElement>("input:invalid");
@@ -128,13 +231,28 @@ export function AuthPanel({
                 <legend className="sr-only">Language and personal information</legend>
                 <div className="registration-language-selector">
                   <b><Globe2 size={17} />{t.app.language}</b>
-                  <label className="language-search"><Search size={16} /><span className="sr-only">Search languages</span><input value={languageQuery} onChange={(event) => setLanguageQuery(event.target.value)} placeholder="Search languages" autoComplete="off" /></label>
-                  <div className="language-options">
-                    {matchingLocales.map((value) => <button key={value} type="button" className={locale === value ? "selected" : ""} aria-pressed={locale === value} onClick={() => setLocale(value)}><span aria-hidden="true">{value.split("-")[0].toUpperCase()}</span><b>{localeNames[value]}</b></button>)}
-                  </div>
+                  <button className="language-trigger" type="button" aria-haspopup="dialog" aria-expanded={languageOpen} onClick={() => setLanguageOpen(true)}>
+                    <span className="language-flag" aria-hidden="true">{localeFlags[locale]}</span>
+                    <span><b>{localeNames[locale]}</b><small>{locale}</small></span>
+                    <ChevronDown size={18} aria-hidden="true" />
+                  </button>
+                  {languageOpen && <div className="language-popup-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setLanguageOpen(false); }}>
+                    <section className="language-popup" role="dialog" aria-modal="true" aria-labelledby="language-popup-title">
+                      <header><div><span className="eyebrow">PREFERRED LANGUAGE</span><h3 id="language-popup-title">{t.app.language}</h3></div><button className="icon-button" type="button" aria-label="Close language selector" onClick={() => setLanguageOpen(false)}><X size={18} /></button></header>
+                      <label className="language-search"><Search size={16} /><span className="sr-only">Search languages</span><input autoFocus value={languageQuery} onChange={(event) => setLanguageQuery(event.target.value)} placeholder="Search languages" autoComplete="off" /></label>
+                      <div className="language-options" role="listbox" aria-label={t.app.language}>
+                        {matchingLocales.map((value) => <button key={value} type="button" role="option" aria-selected={locale === value} className={locale === value ? "selected" : ""} onClick={() => { setLocale(value); setLanguageOpen(false); setLanguageQuery(""); }}><span className="language-flag" aria-hidden="true">{localeFlags[value]}</span><span><b>{localeNames[value]}</b><small>{value}</small></span>{locale === value && <Check size={18} aria-hidden="true" />}</button>)}
+                        {!matchingLocales.length && <p className="language-empty">No matching language</p>}
+                      </div>
+                    </section>
+                  </div>}
                 </div>
-                <label>{t.auth.fullName}<span><UserRound size={17} /><input name="name" autoComplete="name" placeholder={t.auth.fullNamePlaceholder} value={registration.name} onChange={(event) => updateRegistration("name", event.target.value)} required minLength={2} maxLength={100} /></span></label>
-                <label>Username<span><AtSign size={17} /><input name="username" autoComplete="username" placeholder="your.username" value={registration.username} onChange={(event) => updateRegistration("username", event.target.value)} required minLength={3} maxLength={30} pattern="[A-Za-z0-9](?:[A-Za-z0-9._]*[A-Za-z0-9])?" /></span><small>Use 3–30 letters, numbers, periods, or underscores.</small></label>
+                <label>{t.auth.fullName}<span><UserRound size={17} /><input name="name" autoComplete="name" placeholder={t.auth.fullNamePlaceholder} value={registration.name} onChange={(event) => { updateRegistration("name", event.target.value); if (!usernameEdited) setSuggestionHistory([]); }} required minLength={2} maxLength={100} /></span></label>
+                <div className="registration-username-field">
+                  <div className="registration-field-heading"><label htmlFor="registration-username">Username</label><button type="button" disabled={registration.name.trim().length < 2 || usernameStatus === "checking"} onClick={generateAnotherUsername}><RefreshCw size={13} />Generate another</button></div>
+                  <span className={`registration-input username-${usernameStatus}`}><AtSign size={17} /><input ref={usernameInputRef} id="registration-username" name="username" autoComplete="username" placeholder="Suggested from your name" value={registration.username} onChange={(event) => { const value = event.target.value; setUsernameEdited(true); updateRegistration("username", value); setUsernameStatus(!value ? "idle" : value.length < 3 || value.length > 30 || !usernamePattern.test(value) ? "invalid" : "checking"); }} aria-describedby="username-availability" required minLength={3} maxLength={30} pattern="[A-Za-z0-9](?:[A-Za-z0-9._]*[A-Za-z0-9])?" />{usernameStatus === "checking" && <span className="username-spinner" aria-hidden="true" />}</span>
+                  <small id="username-availability" className={`username-status username-status-${usernameStatus}`} role="status">{usernameStatusText}</small>
+                </div>
                 <label>{t.auth.emailAddress}<span><Mail size={17} /><input name="email" type="email" autoComplete="email" placeholder="you@example.com" value={registration.email} onChange={(event) => updateRegistration("email", event.target.value)} required /></span></label>
                 <button type="button" className="button primary auth-submit" onClick={continueRegistration}>Continue <ArrowRight size={18} /></button>
               </fieldset>

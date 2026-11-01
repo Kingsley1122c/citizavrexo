@@ -60,6 +60,44 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 
 @media(max-width:760px){.review-form .modal-actions{position:static;width:auto;padding-bottom:max(4px,env(safe-area-inset-bottom))}}
 
+/* Compact registration language picker */
+.registration-username-field{display:grid;gap:8px;margin:16px 0}
+.registration-field-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px;font-weight:700}
+.registration-field-heading>button{padding:3px 0;background:transparent;color:var(--teal-dark);display:flex;align-items:center;gap:5px;font-size:11px;font-weight:750}
+.registration-field-heading>button:disabled{color:var(--muted)}
+.registration-input{height:48px;padding:0 13px;border:1px solid var(--border);border-radius:6px;background:var(--bg);display:flex;align-items:center;gap:10px}
+.registration-input:focus-within{border-color:var(--teal-dark);box-shadow:0 0 0 2px color-mix(in srgb,var(--teal) 13%,transparent)}
+.registration-input.username-available{border-color:color-mix(in srgb,var(--teal-dark) 65%,var(--border))}
+.registration-input.username-taken,.registration-input.username-invalid{border-color:var(--danger)}
+.registration-input input{flex:1;min-width:0;border:0;outline:0;background:transparent}
+.username-status{min-height:16px;color:var(--muted);font-size:11px;font-weight:500;line-height:1.4}
+.username-status-available{color:var(--teal-dark)}
+.username-status-taken,.username-status-invalid,.username-status-unavailable{color:var(--danger)}
+.username-spinner{flex:0 0 15px;width:15px;height:15px;border:2px solid var(--border);border-top-color:var(--teal-dark);border-radius:50%;animation:Citizavrexo-spin .7s linear infinite}
+@media(max-width:760px){.registration-field-heading>button{min-height:36px;padding:0 2px}.registration-input{height:50px}.registration-input input{font-size:16px}}
+.registration-language-selector{position:relative;margin-bottom:18px}
+.registration-language-selector>.language-trigger{width:100%;min-height:56px;padding:8px 12px;border:1px solid var(--border);border-radius:7px;background:var(--bg);display:grid;grid-template-columns:38px minmax(0,1fr) 20px;align-items:center;gap:10px;text-align:left}
+.registration-language-selector>.language-trigger:hover,.registration-language-selector>.language-trigger[aria-expanded="true"]{border-color:var(--teal-dark);box-shadow:0 0 0 2px color-mix(in srgb,var(--teal) 13%,transparent)}
+.language-trigger>span:nth-child(2),.language-options button>span:nth-child(2){width:auto;min-width:0;height:auto;border:0;border-radius:0;background:transparent;display:grid;place-items:initial;gap:2px;color:inherit}
+.language-trigger b,.language-options b{overflow:hidden;text-overflow:ellipsis;font-size:13px;line-height:1.3}
+.language-trigger small,.language-options small{color:var(--muted);font-size:10px;text-transform:uppercase}
+.registration-language-selector .language-flag{width:38px;height:38px;border:1px solid var(--border);border-radius:50%;background:var(--surface);display:grid;place-items:center;color:inherit;font-size:20px}
+.language-trigger>svg{color:var(--muted)}
+.registration-language-selector>.language-popup-backdrop{position:fixed;z-index:120;inset:0;padding:16px;background:rgba(2,12,18,.44);display:grid;place-items:center}
+.language-popup{width:min(430px,100%);max-height:calc(100dvh - 32px);padding:14px;border:1px solid var(--border);border-radius:8px;background:var(--surface);box-shadow:0 20px 55px rgba(11,23,32,.22);display:grid;grid-template-rows:auto auto minmax(0,1fr);overflow:hidden}
+.language-popup header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.registration-language-selector .language-popup header .icon-button{width:40px;min-width:40px;height:40px;min-height:40px;padding:0;border:1px solid var(--border);border-radius:50%;background:var(--surface);display:grid;place-items:center}
+.language-popup h3{margin:3px 0 0;font-size:18px}
+.language-popup .language-search{height:44px;padding:0 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);display:flex;align-items:center;gap:8px}
+.language-popup .language-search input{width:100%;height:42px}
+.registration-language-selector .language-options{min-height:0;max-height:360px;margin-top:8px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;display:block}
+.registration-language-selector .language-options button{width:100%;min-height:54px;padding:7px 9px;border:0;border-radius:6px;background:transparent;display:grid;grid-template-columns:38px minmax(0,1fr) 20px;align-items:center;gap:10px;text-align:left;box-shadow:none}
+.registration-language-selector .language-options button:hover{background:var(--bg)}
+.registration-language-selector .language-options button.selected{border:0;background:var(--soft);color:var(--teal-dark);box-shadow:none}
+.registration-language-selector .language-options button.selected .language-flag{border-color:var(--teal-dark);background:var(--surface);color:inherit}
+.language-empty{padding:24px 10px;color:var(--muted);font-size:12px;text-align:center}
+@media(max-width:760px){.registration-language-selector>.language-trigger{min-height:58px}.registration-language-selector>.language-popup-backdrop{position:fixed;z-index:130;inset:0;padding:12px;background:rgba(2,12,18,.58);display:flex;align-items:flex-end}.language-popup{width:100%;max-height:min(680px,calc(100dvh - 24px));padding:16px 14px max(14px,env(safe-area-inset-bottom));border-radius:8px 8px 0 0;box-shadow:0 -18px 55px rgba(0,0,0,.24)}.registration-language-selector .language-options{max-height:none;scroll-padding-bottom:calc(20px + env(safe-area-inset-bottom))}.registration-language-selector .language-options button{min-height:58px}.language-popup .language-search input{font-size:16px}}
+
 .overview-actions{display:flex;justify-content:flex-end;margin-top:18px;padding-top:18px;border-top:1px solid var(--border)}.message-recipient{display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--border);border-radius:6px;background:var(--bg)}.message-recipient>span:last-child{min-width:0;display:grid;gap:3px}.message-recipient small{color:var(--teal-dark);font-size:9px;font-weight:800;letter-spacing:1px}.message-recipient b,.message-recipient span{overflow-wrap:anywhere;font-size:12px}.message-compose{display:grid;gap:15px;margin-top:18px;min-width:0}.message-compose label{display:grid;gap:7px;min-width:0;font-size:12px;font-weight:650}.message-compose input,.message-compose textarea{width:100%;min-width:0;padding:11px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);outline:0;font:inherit;color:inherit}.message-compose input{height:44px}.message-compose textarea{min-height:150px;resize:vertical;line-height:1.55}.character-count{justify-self:end;color:var(--muted);font-size:10px;font-weight:500}.preview-toggle{width:max-content;padding:0;background:transparent;color:var(--teal-dark);display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700}.message-preview{padding:20px;border:1px solid var(--border);border-radius:6px;background:var(--surface)}.message-preview>small{color:var(--teal-dark);font-size:9px;font-weight:800;letter-spacing:1px}.message-preview h3{margin:8px 0 14px;font-size:18px}.message-preview p{white-space:pre-wrap;overflow-wrap:anywhere;color:var(--muted);font-size:13px;line-height:1.65}.message-preview .button{margin-top:6px;pointer-events:none}.message-history{display:grid;gap:0;margin-top:22px;padding-top:18px;border-top:1px solid var(--border)}.message-history h3{margin:4px 0 10px;font-size:15px}.message-history-row{min-width:0;padding:12px 0;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:16px}.message-history-row>span{min-width:0;display:grid;gap:4px}.message-history-row>span:last-child{justify-items:end;text-align:right}.message-history-row b,.message-history-row small{overflow-wrap:anywhere}.message-history-row b{font-size:12px}.message-history-row small{color:var(--muted);font-size:10px}
 @media(max-width:760px){.overview-actions .button{width:100%}.message-history-row{align-items:flex-start}.message-history-row>span:last-child{flex:0 0 auto}.message-compose .modal-actions{position:static;width:auto;padding-bottom:max(4px,env(safe-area-inset-bottom))}}
 

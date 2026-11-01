@@ -64,6 +64,19 @@ function captureTransport() {
 }
 
 describe("email-backed authentication", () => {
+  it("skips taken username suggestions and confirms availability against SQLite", async () => {
+    const now = new Date().toISOString();
+    database.insert(users).values([
+      { id: "suggestion-taken-plain", name: "Existing Plain", username: "johnmichael", email: "existing-plain@example.test", avatarInitials: "EP", status: "active", emailVerifiedAt: now, locale: "en", createdAt: now, updatedAt: now },
+      { id: "suggestion-taken-dotted", name: "Existing Dotted", username: "john.michael", email: "existing-dotted@example.test", avatarInitials: "ED", status: "active", emailVerifiedAt: now, locale: "en", createdAt: now, updatedAt: now },
+    ]).run();
+    const { isUsernameAvailable, suggestAvailableUsernames } = await import("./username-service");
+
+    expect(suggestAvailableUsernames("John Michael", [], 2026)[0]).toBe("johnmichael26");
+    expect(isUsernameAvailable("JOHNMICHAEL")).toBe(false);
+    expect(isUsernameAvailable("johnmichael26")).toBe(true);
+  });
+
   it.each(["USD", "JPY", "KRW", "KWD", "EUR"] as const satisfies readonly Currency[])("persists %s as the registered account currency", async (currency) => {
     const { registerUser } = await import("./auth-service");
     const email = `registration-${currency.toLowerCase()}@example.test`;
