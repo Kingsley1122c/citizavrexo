@@ -48,10 +48,13 @@ export async function resendVerificationAction(formData: FormData): Promise<void
 }
 
 export async function verifyEmailAction(formData: FormData): Promise<void> {
-  const parsed = z.string().min(32).max(128).safeParse(formData.get("token"));
+  const parsed = z.object({
+    token: z.string().min(32).max(128),
+    email: z.string().trim().email().max(254),
+  }).safeParse({ token: formData.get("token"), email: formData.get("email") });
   if (!parsed.success) redirect("/verify-email?verified=invalid");
   try {
-    verifyRegisteredEmail(parsed.data);
+    verifyRegisteredEmail(parsed.data.token, parsed.data.email);
   } catch {
     redirect("/verify-email?verified=invalid");
   }

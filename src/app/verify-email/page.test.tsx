@@ -14,6 +14,7 @@ describe("VerifyEmailPage", () => {
     const page = await VerifyEmailPage({ searchParams: Promise.resolve({ token: "a".repeat(64) }) });
 
     expect(page).toBeTruthy();
+    expect(JSON.stringify(page)).toContain('"name":"email"');
     expect(actions.verifyEmailAction).not.toHaveBeenCalled();
   });
 });

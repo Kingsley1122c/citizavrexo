@@ -96,12 +96,14 @@ describe("email-backed authentication", () => {
     expect(messages[0].text).toContain("https://citizavrexo.com/verify-email?token=");
 
     const { verifyRegisteredEmail } = await import("./auth-service");
-    verifyRegisteredEmail(actionTokenFrom(messages[0]));
+    const verificationToken = actionTokenFrom(messages[0]);
+    expect(() => verifyRegisteredEmail(verificationToken, "wrong@example.test")).toThrow("invalid or expired");
+    verifyRegisteredEmail(verificationToken, "READY@EXAMPLE.TEST");
     user = database.select().from(users).where(eq(users.email, "ready@example.test")).get();
     expect(user).toMatchObject({ status: "active" });
     expect(user?.emailVerifiedAt).toBeTruthy();
     expect(database.select().from(notifications).where(eq(notifications.eventReference, `WELCOME-${user!.id}`)).get()?.title).toBe("Welcome to CITIZAVREXO");
-    expect(() => verifyRegisteredEmail(actionTokenFrom(messages[0]))).toThrow("invalid or expired");
+    expect(() => verifyRegisteredEmail(verificationToken, "ready@example.test")).toThrow("invalid or expired");
   });
 
   it("rejects a duplicate registration without creating another account or session", async () => {
@@ -130,7 +132,7 @@ describe("email-backed authentication", () => {
     await requestEmailVerification(email, transport);
     expect(messages).toHaveLength(1);
     expect(database.select().from(authenticationTokens).where(eq(authenticationTokens.id, originalToken.id)).get()?.usedAt).toBeTruthy();
-    expect(() => verifyRegisteredEmail(actionTokenFrom(messages[0]))).not.toThrow();
+    expect(() => verifyRegisteredEmail(actionTokenFrom(messages[0]), email)).not.toThrow();
     expect(database.select().from(users).where(eq(users.id, user.id)).get()).toMatchObject({ status: "active" });
   });
 

@@ -24,7 +24,8 @@ export default async function VerifyEmailPage({ searchParams }: { searchParams: 
       {failed && <p className="auth-message error" role="alert">This verification link is invalid, expired, or has already been used.</p>}
       {token && !succeeded && !failed && <form action={verifyEmailAction}>
         <input type="hidden" name="token" value={token}/>
-        <p>Confirm that you want to activate this Citizavrexo account.</p>
+        <p>Enter the email address you registered with to activate your Citizavrexo account.</p>
+        <label>Email address<span><input name="email" type="email" autoComplete="email" placeholder="you@example.com" required /></span></label>
         <button className="button primary auth-submit" type="submit">Verify email address</button>
       </form>}
       {!succeeded && (!token || failed) && <form action={resendVerificationAction}>

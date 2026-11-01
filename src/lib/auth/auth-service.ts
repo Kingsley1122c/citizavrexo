@@ -84,16 +84,17 @@ export async function requestEmailVerification(emailInput: string, transport?: E
   if (remainingMs > 0) await new Promise((resolve) => setTimeout(resolve, remainingMs));
 }
 
-export function verifyRegisteredEmail(verificationToken: string, now = new Date()): void {
+export function verifyRegisteredEmail(verificationToken: string, emailInput: string, now = new Date()): void {
   const timestamp = now.toISOString();
   const digest = hashActionToken(verificationToken);
+  const expectedEmail = emailInput.trim().toLowerCase();
   db.transaction((tx) => {
     const token = tx.select().from(authenticationTokens).where(and(eq(authenticationTokens.tokenHash, digest), eq(authenticationTokens.purpose, "email_verification"), isNull(authenticationTokens.usedAt), gt(authenticationTokens.expiresAt, timestamp))).limit(1).get();
     if (!token) throw new Error("Verification link is invalid or expired.");
+    const user = tx.select().from(users).where(and(eq(users.id, token.userId), eq(users.email, expectedEmail), eq(users.status, "pending"))).get();
+    if (!user) throw new Error("Verification link is invalid or expired.");
     const consumed = tx.update(authenticationTokens).set({ usedAt: timestamp }).where(and(eq(authenticationTokens.id, token.id), isNull(authenticationTokens.usedAt))).run();
     if (consumed.changes !== 1) throw new Error("Verification link is invalid or expired.");
-    const user = tx.select().from(users).where(and(eq(users.id, token.userId), eq(users.status, "pending"))).get();
-    if (!user) throw new Error("Verification link is invalid or expired.");
     const activated = tx.update(users).set({ status: "active", emailVerifiedAt: timestamp, updatedAt: timestamp }).where(and(eq(users.id, token.userId), eq(users.status, "pending"))).run();
     if (activated.changes !== 1) throw new Error("Verification link is invalid or expired.");
     const t = userUi(user.locale);

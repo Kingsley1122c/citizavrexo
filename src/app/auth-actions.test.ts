@@ -173,15 +173,16 @@ describe("verifyEmailAction", () => {
   it("consumes a validated token only after explicit form submission", async () => {
     const formData = new FormData();
     formData.set("token", "a".repeat(64));
+    formData.set("email", "Pending@Example.test");
 
     await expect(verifyEmailAction(formData)).rejects.toThrow("NEXT_REDIRECT");
-    expect(verifyRegisteredEmail).toHaveBeenCalledWith("a".repeat(64));
+    expect(verifyRegisteredEmail).toHaveBeenCalledWith("a".repeat(64), "Pending@Example.test");
     expect(redirect).toHaveBeenCalledWith("/verify-email?verified=success");
   });
 
-  it("does not call verification for an invalid token", async () => {
+  it("does not call verification unless both the token and email are valid", async () => {
     const formData = new FormData();
-    formData.set("token", "short");
+    formData.set("token", "a".repeat(64));
 
     await expect(verifyEmailAction(formData)).rejects.toThrow("NEXT_REDIRECT");
     expect(verifyRegisteredEmail).not.toHaveBeenCalled();
