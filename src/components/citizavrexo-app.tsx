@@ -95,7 +95,7 @@ type Workspace = {
   devices: AuthorizedDevice[];
   recoveryRequests: RecoveryRequest[];
   auditEvents: AuditEvent[];
-  customerService: { lineUrl: string; email?: string };
+  customerService: { whatsappNumber: string; whatsappUrl: string; lineUrl: string; email?: string };
 };
 type View =
   | "home"

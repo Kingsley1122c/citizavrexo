@@ -66,7 +66,7 @@ export function MoneyWorkflowButtons({
   accounts: Account[];
   destinations: BankDestination[];
   withdrawals: WithdrawalRequest[];
-  customerService: { lineUrl: string; email?: string };
+  customerService: { whatsappNumber: string; whatsappUrl: string; lineUrl: string; email?: string };
   locale: Locale;
   onHistory?: () => void;
   compact?: boolean;
@@ -388,7 +388,7 @@ function WithdrawalDialog({
   accounts: Account[];
   destinations: BankDestination[];
   onDestinationCreated: (destination: BankDestination) => void;
-  customerService: { lineUrl: string; email?: string };
+  customerService: { whatsappNumber: string; whatsappUrl: string; lineUrl: string; email?: string };
   locale: Locale;
   close: () => void;
 }) {
@@ -463,6 +463,15 @@ function WithdrawalDialog({
           <div className="support-actions">
             <a
               className="button primary"
+              href={customerService.whatsappUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <MessageCircle size={17} />
+              WhatsApp
+            </a>
+            <a
+              className="button secondary"
               href={customerService.lineUrl}
               target="_blank"
               rel="noreferrer"

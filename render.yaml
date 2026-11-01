@@ -22,6 +22,26 @@
         value: file:/var/data/citizavrexo.db
       - key: PROFILE_IMAGE_DIR
         value: /var/data/profile-images
+      - key: BACKUP_ENCRYPTION_KEY
+        sync: false
+      - key: BACKUP_S3_ENDPOINT
+        sync: false
+      - key: BACKUP_S3_REGION
+        sync: false
+      - key: BACKUP_S3_BUCKET
+        sync: false
+      - key: BACKUP_S3_ACCESS_KEY_ID
+        sync: false
+      - key: BACKUP_S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: BACKUP_S3_PREFIX
+        value: citizavrexo
+      - key: BACKUP_RETENTION_DAYS
+        value: 35
+      - key: BACKUP_SCHEDULE_HOURS
+        value: 24
+      - key: BACKUP_STATE_FILE
+        value: /var/data/backups/offsite-success.json
       - key: RECOVERY_CODE_PEPPER
         sync: false
       - key: EPHEMERAL_ADMIN_EMAIL
@@ -38,6 +58,10 @@
         sync: false
       - key: CUSTOMER_SERVICE_EMAIL
         sync: false
+      - key: CUSTOMER_SERVICE_WHATSAPP_URL
+        value: https://wa.me/447392968025
+      - key: CUSTOMER_SERVICE_LINE_URL
+        value: https://line.me/ti/p/RDf5RXaT2G
       - key: EXCHANGE_RATE_PROVIDER
         value: open_exchange_rates
       - key: OPEN_EXCHANGE_RATES_APP_ID

@@ -1,5 +1,5 @@
 ﻿import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, MessageCircle, MessagesSquare } from "lucide-react";
 import { PublicLanguageSelect } from "@/components/public-language-select";
 import { BrandLogo } from "@/components/brand-logo";
 import { getCustomerServiceContact } from "@/lib/customer-service";
@@ -15,7 +15,7 @@ export function PublicFooter() {
   const customerService = getCustomerServiceContact();
   return <footer className="landing-footer">
     <div className="brand"><BrandLogo tone="dark"/></div>
-    <div className="landing-footer-links"><Link href="/#security">Security</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><a href={customerService.email ? `mailto:${customerService.email}` : customerService.lineUrl}>Customer Service</a></div>
+    <div className="landing-footer-links"><Link href="/#security">Security</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><a href={customerService.whatsappUrl} target="_blank" rel="noreferrer"><MessageCircle size={16}/>WhatsApp</a><a href={customerService.lineUrl} target="_blank" rel="noreferrer"><MessagesSquare size={16}/>LINE</a></div>
     <PublicLanguageSelect/>
   </footer>;
 }

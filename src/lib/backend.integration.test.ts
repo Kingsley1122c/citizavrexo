@@ -790,12 +790,14 @@ describe("customer-service withdrawal requests", () => {
     expect(createWithdrawalRequest({ userId: "test-user", actorLabel: "test@example.test", accountId: "test-account", destinationId: "test-destination", amountMinor: 4_000, currency: "USD", idempotencyKey: "withdrawal-create-0001" })).toBe(reference);
   });
 
-  it("uses the official LINE URL and preserves only valid configured email support", async () => {
+  it("uses the official support contacts and preserves only valid configuration", async () => {
     vi.stubEnv("CUSTOMER_SERVICE_EMAIL", "support@citizavrexo.com");
     const { getCustomerServiceContact } = await import("./customer-service");
-    expect(getCustomerServiceContact()).toEqual({ lineUrl: "https://line.me/ti/p/wfRRjNqPzw", email: "support@citizavrexo.com" });
+    expect(getCustomerServiceContact()).toEqual({ whatsappNumber: "+44 7392 968025", whatsappUrl: "https://wa.me/447392968025", lineUrl: "https://line.me/ti/p/RDf5RXaT2G", email: "support@citizavrexo.com" });
+    vi.stubEnv("CUSTOMER_SERVICE_WHATSAPP_URL", "https://example.com/not-whatsapp");
+    vi.stubEnv("CUSTOMER_SERVICE_LINE_URL", "http://line.me/insecure");
     vi.stubEnv("CUSTOMER_SERVICE_EMAIL", "invalid-email");
-    expect(getCustomerServiceContact()).toEqual({ lineUrl: "https://line.me/ti/p/wfRRjNqPzw", email: undefined });
+    expect(getCustomerServiceContact()).toEqual({ whatsappNumber: "+44 7392 968025", whatsappUrl: "https://wa.me/447392968025", lineUrl: "https://line.me/ti/p/RDf5RXaT2G", email: undefined });
   });
 
   it("requires successful two-stage authorization before administrative completion", async () => {

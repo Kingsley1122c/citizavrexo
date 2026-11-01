@@ -59,9 +59,9 @@ Do not deploy these identities or passwords.
 
 `render.yaml` defines one paid Node web service with a 1 GB SSD mounted at `/var/data`. SQLite is stored at `/var/data/citizavrexo.db`, profile images at `/var/data/profile-images`, migrations run during production startup, and `/api/health` verifies database access. Automatic deployment tracks `main`.
 
-The minimum instance is `0.5c-512mb` at $7/month and the 1 GB disk costs $0.25/month, for $7.25/month before usage-based overages. The application creates pre-migration SQLite snapshots on the disk and includes encrypted backup/restore commands; independent encrypted backup copies remain an operator responsibility. All financial operations are simulated.
+The minimum instance is `0.5c-512mb` at $7/month and the 1 GB disk costs $0.25/month, for $7.25/month before usage-based overages. The application creates pre-migration SQLite snapshots and includes encrypted database-and-profile-image backup/restore commands. An opt-in daily worker can upload verified bundles to an independently approved S3-compatible destination; it remains disabled until every destination secret is configured. All financial operations are simulated.
 
-Set `RECOVERY_CODE_PEPPER`, `EPHEMERAL_ADMIN_EMAIL`, `EPHEMERAL_ADMIN_NAME`, `EPHEMERAL_ADMIN_PASSWORD`, `RESEND_API_KEY`, `EMAIL_FROM`, `APP_URL`, `CUSTOMER_SERVICE_EMAIL`, and `OPEN_EXCHANGE_RATES_APP_ID` as Render secrets. `EMAIL_FROM` must use a domain verified by Resend and `APP_URL` must be the canonical HTTPS origin. Never copy `.env.local` into the repository or run `npm run db:seed` on the hosted service. Cross-currency transfers remain unavailable unless the configured exchange-rate provider is usable.
+Set `RECOVERY_CODE_PEPPER`, `EPHEMERAL_ADMIN_EMAIL`, `EPHEMERAL_ADMIN_NAME`, `EPHEMERAL_ADMIN_PASSWORD`, `RESEND_API_KEY`, `EMAIL_FROM`, `APP_URL`, `CUSTOMER_SERVICE_EMAIL`, and the Citizavrexo-specific `OPEN_EXCHANGE_RATES_APP_ID` as Render secrets. Configure the backup secrets only after approving an independent destination and preserve the encryption key separately. `EMAIL_FROM` must use a domain verified by Resend and `APP_URL` must be the canonical HTTPS origin. Never copy `.env.local` into the repository or run `npm run db:seed` on the hosted service. Cross-currency transfers fail closed whenever the configured Open Exchange Rates provider is unavailable.
 
 ## Client Handover
 
@@ -95,7 +95,8 @@ npm run db:migrate
 npm run db:seed
 npm run db:backup -- <output.nvbackup>
 npm run db:backup:verify -- <input.nvbackup>
-npm run db:restore -- <input.nvbackup> <new-database.db>
+npm run db:backup:offsite
+npm run db:restore -- <input.nvbackup> <new-database.db> <new-profile-images-directory>
 npx tsc --noEmit
 npm run lint
 npm test
