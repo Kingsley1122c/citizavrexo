@@ -28,7 +28,7 @@ describe("live exchange-rate verification", () => {
     expect(first).toEqual(second);
     expect(first).toMatchObject({ status: "ok", provider: "open_exchange_rates", currencyCount: 16, publishedAt, ageSeconds: 3_600, maxAgeSeconds: 21_600, providerUpdateCadenceSeconds: 3_600, cacheTtlSeconds: 3_600, quoteExpirySeconds: 300, reciprocalAccuracy: true, simulatedOnly: true });
     expect(first.currencies).toEqual(DEMONSTRATION_CURRENCIES);
-    expect(getRate).toHaveBeenCalledTimes(31);
+    expect(getRate).toHaveBeenCalledTimes(30);
     vi.unstubAllEnvs();
   });
 });

@@ -29,11 +29,12 @@ export function verifyLiveExchangeRates(now = new Date()): Promise<LiveRateVerif
 
 async function runVerification(now: Date): Promise<LiveRateVerification> {
   const provider = getExchangeRateProvider();
-  const snapshots = await Promise.all(DEMONSTRATION_CURRENCIES.map((currency) => provider.getRate({ fromCurrency: "USD", toCurrency: currency })));
-  const reciprocals = await Promise.all(DEMONSTRATION_CURRENCIES.filter((currency) => currency !== "USD").map((currency) => provider.getRate({ fromCurrency: currency, toCurrency: "USD" })));
+  const providerCurrencies = DEMONSTRATION_CURRENCIES.filter((currency) => currency !== "USD");
+  const snapshots = await Promise.all(providerCurrencies.map((currency) => provider.getRate({ fromCurrency: "USD", toCurrency: currency })));
+  const reciprocals = await Promise.all(providerCurrencies.map((currency) => provider.getRate({ fromCurrency: currency, toCurrency: "USD" })));
   const publishedAt = snapshots[0].publishedAt;
   const sameSnapshot = snapshots.every((snapshot) => snapshot.publishedAt === publishedAt && Number(snapshot.rate) > 0 && Number.isFinite(Number(snapshot.rate)));
-  const reciprocalAccuracy = reciprocals.every((snapshot, index) => Math.abs(Number(snapshot.rate) * Number(snapshots[index + 1].rate) - 1) < 1e-12);
+  const reciprocalAccuracy = reciprocals.every((snapshot, index) => Math.abs(Number(snapshot.rate) * Number(snapshots[index].rate) - 1) < 1e-12);
   const publishedTime = Date.parse(publishedAt);
   const maxAgeSeconds = Number(process.env.EXCHANGE_RATE_MAX_AGE_SECONDS ?? "21600");
   const ageSeconds = Math.floor((now.getTime() - publishedTime) / 1_000);
