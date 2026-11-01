@@ -134,6 +134,13 @@
       "when": 1791000000000,
       "tag": "0018_withdrawal_two_stage_authorization",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791086400000,
+      "tag": "0019_transaction_authorization",
+      "breakpoints": true
     }
   ]
 }

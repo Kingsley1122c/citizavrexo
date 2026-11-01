@@ -22,6 +22,7 @@ import {
   lookupTransferRecipientAction,
   requestWithdrawalAction,
   sendMoneyAction,
+  verifyTransactionAuthorizationCodeAction,
   verifyWithdrawalCodeAction,
   verifyWithdrawalSwiftCodeAction,
 } from "@/app/user-actions";
@@ -183,6 +184,7 @@ function SendMoneyDialog({
     {},
   );
   const [sendState, sendAction, sending] = useActionState(sendMoneyAction, {});
+  const [verificationState, verificationAction, verifying] = useActionState(verifyTransactionAuthorizationCodeAction, {});
   const [quoteState, quoteAction, quoting] = useActionState(createTransferQuoteAction, {});
   const [amount, setAmount] = useState("");
   const sender =
@@ -195,8 +197,10 @@ function SendMoneyDialog({
   return (
     <Modal
       title={
-        sendState.success
+        verificationState.receipt || sendState.receipt
           ? text.complete
+          : sendState.transactionAuthorizationRequestId
+            ? "Transaction authorization"
           : pinStep
             ? "Authorize transfer"
           : quote
@@ -207,15 +211,31 @@ function SendMoneyDialog({
       close={close}
       closeLabel={text.close}
     >
-      {sending ? (
+      {sending || verifying ? (
         <WorkflowPending label="Processing transfer..." />
-      ) : sendState.success && sendState.receipt ? (
+      ) : (verificationState.receipt || sendState.receipt) ? (
         <div className="workflow-success" role="status">
-          <TransferReceiptCard receipt={sendState.receipt} locale={locale} />
+          <TransferReceiptCard receipt={(verificationState.receipt ?? sendState.receipt)!} locale={locale} />
           <button className="button primary" type="button" onClick={close}>
             {text.done}
           </button>
         </div>
+      ) : sendState.transactionAuthorizationRequestId ? (
+        <form action={verificationAction} className="review-form pin-authorization-form" aria-label="Enter transaction authorization code">
+          <input type="hidden" name="requestId" value={sendState.transactionAuthorizationRequestId} />
+          <div className="recipient-confirm">
+            <span>REQUEST SUBMITTED</span>
+            <b>Administrator authorization pending</b>
+            <small>Reference {sendState.transactionAuthorizationReference}</small>
+          </div>
+          <p className="note">An administrator will issue a single-use code for this exact transfer. The code is also sent to your verified email and expires 15 minutes after issue.</p>
+          <label className="workflow-field">Transaction authorization code<input name="code" inputMode="text" pattern="[A-Za-z0-9]{4}-[A-Za-z0-9]{4}" minLength={9} maxLength={9} autoComplete="one-time-code" placeholder="XXXX-XXXX" required autoFocus /></label>
+          {verificationState.error && <p className="auth-message error" role="alert">{localizeUserActionMessage(locale, verificationState.error)}</p>}
+          <div className="modal-actions">
+            <button className="button secondary" type="button" onClick={close}>{text.cancel}</button>
+            <button className="button primary">Verify and send</button>
+          </div>
+        </form>
       ) : pinStep && quote ? (
         <form action={sendAction} className="review-form pin-authorization-form" aria-label="Authorize transfer with Transaction PIN">
           <input type="hidden" name="quoteId" value={quote.id} />
@@ -225,7 +245,7 @@ function SendMoneyDialog({
           {sendState.error && <p className="auth-message error" role="alert">{localizeUserActionMessage(locale, sendState.error)}</p>}
           <div className="modal-actions">
             <button className="button secondary" type="button" onClick={() => setPinStep(false)}><ArrowLeft size={16} />{text.back}</button>
-            <button className="button primary" disabled={!idempotencyKey} aria-label="Authorize and execute transfer">Authorize transfer</button>
+            <button className="button primary" disabled={!idempotencyKey} aria-label="Request transaction authorization">Request authorization</button>
           </div>
         </form>
       ) : quote && recipient && sender ? (

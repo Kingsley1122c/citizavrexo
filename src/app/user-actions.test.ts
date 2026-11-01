@@ -63,6 +63,10 @@ vi.mock("@/lib/transactions/transfer-service", () => {
   class TransferError extends Error {}
   return { TransferError, createTransferQuote: vi.fn(), findCompletedTransferRetry: vi.fn(), findTransferRecipient: vi.fn(), getTransferReceiptForUser: vi.fn(() => ({ reference: "NVT-action-test" })), transferBetweenUsers: vi.fn(() => "NVT-action-test") };
 });
+vi.mock("@/lib/transactions/transaction-authorization-service", () => {
+  class TransactionAuthorizationError extends Error {}
+  return { TransactionAuthorizationError, requestTransactionAuthorization: vi.fn(() => ({ requestId: "transaction-authorization-action-test", reference: "NVA-action-test", status: "pending" })), verifyTransactionAuthorizationCode: vi.fn() };
+});
 
 import { revalidatePath } from "next/cache";
 import { createBankDestinationAction, requestWithdrawalAction, saveProfileAction, sendMoneyAction } from "./user-actions";
@@ -74,7 +78,7 @@ import {
   WithdrawalError,
 } from "@/lib/withdrawals/withdrawal-service";
 import { authorizeTransferWithPin } from "@/lib/security/transaction-pin-service";
-import { transferBetweenUsers } from "@/lib/transactions/transfer-service";
+import { requestTransactionAuthorization } from "@/lib/transactions/transaction-authorization-service";
 
 describe("customer mutation actions", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -168,16 +172,16 @@ describe("customer mutation actions", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/admin");
   });
 
-  it("verifies the PIN for the exact quote before executing without forwarding plaintext", async () => {
+  it("verifies the PIN for the exact quote before requesting a transaction code without forwarding plaintext", async () => {
     const formData = new FormData();
     formData.set("quoteId", "quote-action-test");
     formData.set("idempotencyKey", "transfer-ui-action-test");
     formData.set("pin", "2468");
 
-    await expect(sendMoneyAction({}, formData)).resolves.toMatchObject({ success: "Transfer completed.", reference: "NVT-action-test" });
+    await expect(sendMoneyAction({}, formData)).resolves.toMatchObject({ success: "Transaction authorization requested.", transactionAuthorizationRequestId: "transaction-authorization-action-test", transactionAuthorizationReference: "NVA-action-test" });
     expect(authorizeTransferWithPin).toHaveBeenCalledWith({ userId: "action-user", quoteId: "quote-action-test", pin: "2468" });
-    expect(transferBetweenUsers).toHaveBeenCalledWith({ userId: "action-user", actorLabel: "action-user@example.test", quoteId: "quote-action-test", idempotencyKey: "transfer-ui-action-test" });
-    expect(JSON.stringify(vi.mocked(transferBetweenUsers).mock.calls)).not.toContain("2468");
+    expect(requestTransactionAuthorization).toHaveBeenCalledWith({ userId: "action-user", actorLabel: "action-user@example.test", quoteId: "quote-action-test", pinAuthorizationId: "pin-auth-test", idempotencyKey: "transfer-ui-action-test" });
+    expect(JSON.stringify(vi.mocked(requestTransactionAuthorization).mock.calls)).not.toContain("2468");
   });
 
   it("logs a redacted profile validation category without form values", async () => {

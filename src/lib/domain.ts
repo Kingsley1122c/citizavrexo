@@ -122,6 +122,28 @@ export interface Transaction {
   };
 }
 
+export interface TransactionAuthorizationRequest {
+  id: string;
+  reference: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  senderAccountName: string;
+  senderAccountNumber: string;
+  recipientName: string;
+  recipientAccountNumber: string;
+  sourceAmount: number;
+  sourceCurrency: Currency;
+  recipientAmount: number;
+  recipientCurrency: Currency;
+  status: "pending" | "code_issued" | "completed" | "expired" | "cancelled";
+  requestedAt: string;
+  codeStatus?: "issued" | "verified" | "revoked" | "expired";
+  codeIssuedAt?: string;
+  codeExpiresAt?: string;
+  transferReference?: string;
+}
+
 export interface CurrencyChangeRequest {
   id: string;
   accountId: string;

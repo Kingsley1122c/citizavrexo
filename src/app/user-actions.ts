@@ -14,7 +14,7 @@ import { toggleOwnedCardCapability, toggleOwnedCardFreeze, type CardCapability, 
 import { CardRequestError, createCardRequest } from "@/lib/cards/card-request-service";
 import { SUPPORTED_CURRENCIES, type Currency } from "@/lib/currency";
 import { parseMajorAmountToMinor } from "@/lib/money";
-import { createTransferQuote, findCompletedTransferRetry, findTransferRecipient, getTransferReceiptForUser, TransferError, transferBetweenUsers, type TransferQuote } from "@/lib/transactions/transfer-service";
+import { createTransferQuote, findCompletedTransferRetry, findTransferRecipient, getTransferReceiptForUser, TransferError, type TransferQuote } from "@/lib/transactions/transfer-service";
 import type { BankDestination, TransferReceipt, UserProfile } from "@/lib/domain";
 import { cancelOwnedWithdrawalRequest, getWithdrawalSupportDetailsForUser, type WithdrawalSupportDetails, WithdrawalError } from "@/lib/withdrawals/withdrawal-service";
 import { BankDestinationError, createBankDestination, deleteOwnedBankDestination } from "@/lib/withdrawals/bank-destination-service";
@@ -25,6 +25,7 @@ import { SUPPORTED_LOCALES } from "@/lib/i18n/config";
 import { CurrencyChangeError, requestCurrencyChange } from "@/lib/accounts/currency-change-service";
 import { authorizeTransferWithPin, changeTransactionPin, setUpTransactionPin, TransactionPinError } from "@/lib/security/transaction-pin-service";
 import { requestWithdrawalWithPin, verifyWithdrawalAuthorizationCode } from "@/lib/withdrawals/withdrawal-service";
+import { requestTransactionAuthorization, TransactionAuthorizationError, verifyTransactionAuthorizationCode } from "@/lib/transactions/transaction-authorization-service";
 
 export type RecoveryCodeActionState = { codes: string[]; error: string | null };
 export type CardRequestActionState = { error?: string; success?: string };
@@ -39,6 +40,8 @@ export type MoneyActionState = {
   withdrawalRequestId?: string;
   authorizationStage?: "awaiting_withdrawal_code" | "awaiting_swift_code" | "authorized";
   authorizationCompleted?: boolean;
+  transactionAuthorizationRequestId?: string;
+  transactionAuthorizationReference?: string;
 };
 export type BankDestinationActionState = { error?: string; success?: string; destination?: BankDestination };
 export type ProfileImageActionState = { error?: string; success?: string };
@@ -213,13 +216,29 @@ export async function sendMoneyAction(_: MoneyActionState, formData: FormData): 
   try {
     const transferInput = { userId: user.id, quoteId: parsed.data.quoteId, idempotencyKey: parsed.data.idempotencyKey };
     const existingReference = findCompletedTransferRetry(transferInput);
-    if (!existingReference) await authorizeTransferWithPin({ userId: user.id, quoteId: parsed.data.quoteId, pin: parsed.data.pin });
-    const reference = existingReference ?? transferBetweenUsers({ ...transferInput, actorLabel: user.email });
+    if (existingReference) return { success: "Transfer completed.", reference: existingReference, receipt: getTransferReceiptForUser(existingReference, user.id) };
+    const pinAuthorizationId = await authorizeTransferWithPin({ userId: user.id, quoteId: parsed.data.quoteId, pin: parsed.data.pin });
+    const request = requestTransactionAuthorization({ ...transferInput, actorLabel: user.email, pinAuthorizationId });
     revalidatePath("/app");
     revalidatePath("/admin");
-    return { success: "Transfer completed.", reference, receipt: getTransferReceiptForUser(reference, user.id) };
+    if (request.transferReference) return { success: "Transfer completed.", reference: request.transferReference, receipt: getTransferReceiptForUser(request.transferReference, user.id) };
+    return { success: "Transaction authorization requested.", transactionAuthorizationRequestId: request.requestId, transactionAuthorizationReference: request.reference };
   } catch (error) {
-    return { error: error instanceof TransferError || error instanceof TransactionPinError ? error.message : "The transfer could not be completed." };
+    return { error: error instanceof TransferError || error instanceof TransactionPinError || error instanceof TransactionAuthorizationError ? error.message : "The transfer could not be submitted for authorization." };
+  }
+}
+
+export async function verifyTransactionAuthorizationCodeAction(_: MoneyActionState, formData: FormData): Promise<MoneyActionState> {
+  const user = await requireUser();
+  const parsed = z.object({ requestId: opaqueId, code: z.string().trim().min(9).max(9) }).safeParse({ requestId: formData.get("requestId"), code: formData.get("code") });
+  if (!parsed.success) return { error: "Enter a valid transaction authorization code." };
+  try {
+    const result = await verifyTransactionAuthorizationCode({ userId: user.id, actorLabel: user.email, requestId: parsed.data.requestId, code: parsed.data.code });
+    revalidatePath("/app");
+    revalidatePath("/admin");
+    return { success: "Transfer completed.", reference: result.transferReference, receipt: getTransferReceiptForUser(result.transferReference, user.id), transactionAuthorizationRequestId: parsed.data.requestId, transactionAuthorizationReference: result.requestReference };
+  } catch (error) {
+    return { error: error instanceof TransactionAuthorizationError || error instanceof TransferError ? error.message : "The transaction authorization code could not be verified.", transactionAuthorizationRequestId: parsed.data.requestId };
   }
 }
 

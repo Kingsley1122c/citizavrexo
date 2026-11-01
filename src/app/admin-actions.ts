@@ -16,10 +16,12 @@ import { issueWithdrawalAuthorizationCode, revokeWithdrawalAuthorizationCode, re
 import type { WithdrawalAuthorizationCodeStage } from "@/lib/domain";
 import { CurrencyChangeError, reviewCurrencyChange } from "@/lib/accounts/currency-change-service";
 import { consumeAuthRateLimit } from "@/lib/auth/rate-limit-service";
+import { issueTransactionAuthorizationCode, TransactionAuthorizationError } from "@/lib/transactions/transaction-authorization-service";
 
 export type AdminActionState = { error?: string; success?: string };
 export type AdminMessageActionState = AdminActionState & { message?: AdminMessage };
 export type WithdrawalAuthorizationAdminState = AdminActionState & { issuedCode?: string; expiresAt?: string; stage?: WithdrawalAuthorizationCodeStage };
+export type TransactionAuthorizationAdminState = AdminActionState & { issuedCode?: string; expiresAt?: string };
 const opaqueId = z.string().min(1).max(100).regex(/^[A-Za-z0-9_-]+$/);
 const enforceAdminActionLimit = (actorId: string, action: string): boolean => consumeAuthRateLimit("admin_sensitive", `${actorId}:${action}`);
 
@@ -175,4 +177,19 @@ export async function reviewCurrencyChangeAction(_: AdminActionState, formData: 
   revalidatePath("/admin");
   revalidatePath("/app");
   return { success: `Currency-change request ${parsed.data.decision}.` };
+}
+
+export async function issueTransactionAuthorizationCodeAction(_: TransactionAuthorizationAdminState, formData: FormData): Promise<TransactionAuthorizationAdminState> {
+  const identity = await requirePermission("transactions.authorize");
+  if (!enforceAdminActionLimit(identity.id, "transactions.authorize")) return { error: "Too many attempts. Please try again later." };
+  const parsed = z.object({ requestId: opaqueId, mode: z.enum(["issue", "reissue"]).default("issue") }).safeParse({ requestId: formData.get("requestId"), mode: formData.get("mode") || "issue" });
+  if (!parsed.success) return { error: "The transaction authorization request is invalid." };
+  try {
+    const issued = issueTransactionAuthorizationCode({ actorId: identity.id, actorLabel: identity.email, actorRole: identity.adminRole, ...parsed.data });
+    revalidatePath("/admin");
+    revalidatePath("/app");
+    return { success: "Transaction authorization code issued and queued for email delivery.", issuedCode: issued.code, expiresAt: issued.expiresAt };
+  } catch (error) {
+    return { error: error instanceof TransactionAuthorizationError ? error.message : "The transaction authorization code could not be issued." };
+  }
 }

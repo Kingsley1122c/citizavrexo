@@ -6,7 +6,7 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { and, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { accounts, adminCredits, adminMessages, auditEvents, authenticationTokens, authRateLimits, bankDestinations, cardRequests, cards, credentials, currencyChangeRequests, devices, emailOutbox, internalTransfers, notifications, recoveryCodes, recoveryRequests, sessions, transactions, transferPinAuthorizations, transferQuotes, users, userProfiles, userStatusChanges, withdrawalAuthorizationAttempts, withdrawalAuthorizationCodes, withdrawalRequests } from "./db/schema";
+import { accounts, adminCredits, adminMessages, auditEvents, authenticationTokens, authRateLimits, bankDestinations, cardRequests, cards, credentials, currencyChangeRequests, devices, emailOutbox, internalTransfers, notifications, recoveryCodes, recoveryRequests, sessions, transactionAuthorizationAttempts, transactionAuthorizationCodes, transactionAuthorizationRequests, transactions, transferPinAuthorizations, transferQuotes, users, userProfiles, userStatusChanges, withdrawalAuthorizationAttempts, withdrawalAuthorizationCodes, withdrawalRequests } from "./db/schema";
 import { hasPermission } from "./auth/permissions";
 import { userUi } from "./i18n/user-ui";
 
@@ -453,6 +453,9 @@ describe("Citizavrexo-to-Citizavrexo transfers", () => {
   });
 
   beforeEach(() => {
+    database.delete(transactionAuthorizationAttempts).run();
+    database.delete(transactionAuthorizationCodes).run();
+    database.delete(transactionAuthorizationRequests).run();
     database.delete(transferPinAuthorizations).run();
     database.delete(authRateLimits).run();
     database.update(credentials).set({ transactionPinHash: null }).where(eq(credentials.userId, "test-user")).run();
@@ -474,6 +477,15 @@ describe("Citizavrexo-to-Citizavrexo transfers", () => {
   const authorizeQuote = (quoteId: string) => {
     const quote = database.select().from(transferQuotes).where(eq(transferQuotes.id, quoteId)).get()!;
     database.insert(transferPinAuthorizations).values({ id: `${quoteId}-pin`, userId: quote.userId, quoteId, expiresAt: quote.expiresAt, createdAt: new Date().toISOString() }).run();
+  };
+  const authorizeTransaction = (quoteId: string, idempotencyKey: string, userId = "test-user") => {
+    const quote = database.select().from(transferQuotes).where(eq(transferQuotes.id, quoteId)).get()!;
+    const pinAuthorization = database.select().from(transferPinAuthorizations).where(eq(transferPinAuthorizations.quoteId, quoteId)).get()!;
+    const requestId = `${quoteId}-authorization`;
+    const now = new Date().toISOString();
+    database.insert(transactionAuthorizationRequests).values({ id: requestId, reference: `NVA-${quoteId}`, userId, quoteId, pinAuthorizationId: pinAuthorization.id, idempotencyKey, senderAccountId: quote.senderAccountId, recipientAccountId: quote.recipientAccountId, sourceAmountMinor: quote.sourceAmountMinor, sourceCurrency: quote.sourceCurrency, recipientAmountMinor: quote.recipientAmountMinor, recipientCurrency: quote.recipientCurrency, exchangeRate: quote.exchangeRate, rateDate: quote.rateDate, rateTimestamp: quote.rateTimestamp, rateProvider: quote.rateProvider, status: "code_issued", requestedAt: now }).run();
+    database.insert(transactionAuthorizationCodes).values({ id: `${requestId}-code`, requestId, userId, codeHash: `${requestId}-test-hash`, status: "verified", issuedBy: userId, issuedAt: now, expiresAt: quote.expiresAt, verifiedAt: now }).run();
+    return requestId;
   };
 
   it("sets up an exactly four-digit PIN and stores only an Argon2 hash", async () => {
@@ -505,6 +517,68 @@ describe("Citizavrexo-to-Citizavrexo transfers", () => {
     expect(limiter?.attempts).toBe(5);
   });
 
+  it("requires an admin-issued code for the exact request and completes it once", async () => {
+    const { issueTransactionAuthorizationCode, requestTransactionAuthorization, verifyTransactionAuthorizationCode } = await import("./transactions/transaction-authorization-service");
+    const quoteId = insertQuote({ id: "quote-authorization-complete", sourceAmountMinor: 1_200 });
+    const request = requestTransactionAuthorization({ userId: "test-user", actorLabel: "test@example.test", quoteId, pinAuthorizationId: `${quoteId}-pin`, idempotencyKey: "transfer-authorization-complete" });
+    expect(database.select().from(accounts).where(eq(accounts.id, "test-account")).get()?.balanceMinor).toBe(20_000);
+    expect(database.select().from(transactionAuthorizationRequests).where(eq(transactionAuthorizationRequests.id, request.requestId)).get()).toMatchObject({ status: "pending", sourceAmountMinor: 1_200 });
+
+    const issued = issueTransactionAuthorizationCode({ actorId: "admin-reviewer", actorLabel: "admin@example.test", actorRole: "administrator", requestId: request.requestId, mode: "issue" });
+    const storedCode = database.select().from(transactionAuthorizationCodes).where(eq(transactionAuthorizationCodes.requestId, request.requestId)).get()!;
+    expect(storedCode.codeHash).not.toContain(issued.code);
+    expect(database.select().from(notifications).where(eq(notifications.eventReference, `${request.reference}:code:${storedCode.id}`)).get()?.message).not.toContain(issued.code);
+    expect(database.select().from(emailOutbox).where(eq(emailOutbox.eventReference, `${request.reference}:code:${storedCode.id}`)).get()?.payloadJson).toContain(issued.code);
+
+    const completed = await verifyTransactionAuthorizationCode({ userId: "test-user", actorLabel: "test@example.test", requestId: request.requestId, code: issued.code });
+    expect(completed.transferReference).toMatch(/^NVT-/);
+    expect(database.select().from(transactionAuthorizationRequests).where(eq(transactionAuthorizationRequests.id, request.requestId)).get()).toMatchObject({ status: "completed", transferReference: completed.transferReference });
+    expect(database.select().from(transactionAuthorizationAttempts).where(eq(transactionAuthorizationAttempts.requestId, request.requestId)).get()?.outcome).toBe("success");
+    expect(database.select().from(accounts).where(eq(accounts.id, "test-account")).get()?.balanceMinor).toBe(18_800);
+    await expect(verifyTransactionAuthorizationCode({ userId: "test-user", actorLabel: "test@example.test", requestId: request.requestId, code: issued.code })).rejects.toThrow("invalid or unavailable");
+  });
+
+  it("rejects another user and locks the code after five persisted failures", async () => {
+    const { issueTransactionAuthorizationCode, requestTransactionAuthorization, verifyTransactionAuthorizationCode } = await import("./transactions/transaction-authorization-service");
+    const quoteId = insertQuote({ id: "quote-authorization-lock", sourceAmountMinor: 300 });
+    const request = requestTransactionAuthorization({ userId: "test-user", actorLabel: "test@example.test", quoteId, pinAuthorizationId: `${quoteId}-pin`, idempotencyKey: "transfer-authorization-lock" });
+    const issued = issueTransactionAuthorizationCode({ actorId: "admin-reviewer", actorLabel: "admin@example.test", actorRole: "administrator", requestId: request.requestId, mode: "issue" });
+    await expect(verifyTransactionAuthorizationCode({ userId: "transfer-other", actorLabel: "other-transfer@example.test", requestId: request.requestId, code: issued.code })).rejects.toThrow("invalid or unavailable");
+    for (let attempt = 1; attempt <= 5; attempt += 1) await expect(verifyTransactionAuthorizationCode({ userId: "test-user", actorLabel: "test@example.test", requestId: request.requestId, code: "AAAA-BBBB" })).rejects.toThrow(attempt === 5 ? "Too many" : "invalid or expired");
+    expect(database.select().from(transactionAuthorizationCodes).where(eq(transactionAuthorizationCodes.requestId, request.requestId)).get()).toMatchObject({ failedAttempts: 5 });
+    expect(database.select().from(transactionAuthorizationAttempts).where(eq(transactionAuthorizationAttempts.requestId, request.requestId)).all()).toHaveLength(5);
+    expect(database.select().from(accounts).where(eq(accounts.id, "test-account")).get()?.balanceMinor).toBe(20_000);
+  });
+
+  it("expires an issued transaction code without consuming the bound transfer", async () => {
+    const { issueTransactionAuthorizationCode, requestTransactionAuthorization, verifyTransactionAuthorizationCode } = await import("./transactions/transaction-authorization-service");
+    const now = new Date();
+    const quoteId = insertQuote({ id: "quote-authorization-expired", sourceAmountMinor: 400 });
+    const request = requestTransactionAuthorization({ userId: "test-user", actorLabel: "test@example.test", quoteId, pinAuthorizationId: `${quoteId}-pin`, idempotencyKey: "transfer-authorization-expired", now });
+    const issued = issueTransactionAuthorizationCode({ actorId: "admin-reviewer", actorLabel: "admin@example.test", actorRole: "administrator", requestId: request.requestId, mode: "issue", now });
+    await expect(verifyTransactionAuthorizationCode({ userId: "test-user", actorLabel: "test@example.test", requestId: request.requestId, code: issued.code, now: new Date(now.getTime() + 16 * 60_000) })).rejects.toThrow("expired");
+    expect(database.select().from(transactionAuthorizationCodes).where(eq(transactionAuthorizationCodes.requestId, request.requestId)).get()?.status).toBe("expired");
+    expect(database.select().from(transactionAuthorizationAttempts).where(eq(transactionAuthorizationAttempts.requestId, request.requestId)).get()?.outcome).toBe("expired");
+    expect(database.select().from(transferQuotes).where(eq(transferQuotes.id, quoteId)).get()?.consumedAt).toBeNull();
+  });
+
+  it("retries the transfer safely after code verification succeeds but the ledger transaction rolls back", async () => {
+    const { issueTransactionAuthorizationCode, requestTransactionAuthorization, verifyTransactionAuthorizationCode } = await import("./transactions/transaction-authorization-service");
+    const quoteId = insertQuote({ id: "quote-authorization-retry", sourceAmountMinor: 500 });
+    const request = requestTransactionAuthorization({ userId: "test-user", actorLabel: "test@example.test", quoteId, pinAuthorizationId: `${quoteId}-pin`, idempotencyKey: "transfer-authorization-retry" });
+    const issued = issueTransactionAuthorizationCode({ actorId: "admin-reviewer", actorLabel: "admin@example.test", actorRole: "administrator", requestId: request.requestId, mode: "issue" });
+    sqlite.exec("CREATE TRIGGER fail_authorized_transfer_notification BEFORE INSERT ON notifications WHEN NEW.title = 'Transfer completed' BEGIN SELECT RAISE(ABORT, 'forced authorized transfer failure'); END;");
+    try {
+      await expect(verifyTransactionAuthorizationCode({ userId: "test-user", actorLabel: "test@example.test", requestId: request.requestId, code: issued.code })).rejects.toThrow("forced authorized transfer failure");
+    } finally {
+      sqlite.exec("DROP TRIGGER fail_authorized_transfer_notification;");
+    }
+    expect(database.select().from(transactionAuthorizationCodes).where(eq(transactionAuthorizationCodes.requestId, request.requestId)).get()?.status).toBe("verified");
+    const retried = await verifyTransactionAuthorizationCode({ userId: "test-user", actorLabel: "test@example.test", requestId: request.requestId, code: issued.code });
+    expect(retried.transferReference).toMatch(/^NVT-/);
+    expect(database.select().from(accounts).where(eq(accounts.id, "test-account")).get()?.balanceMinor).toBe(19_500);
+  });
+
   it("binds one PIN authorization to one quote and prevents replay on changed details", async () => {
     const { authorizeTransferWithPin, setUpTransactionPin } = await import("./security/transaction-pin-service");
     const { createTransferQuote, transferBetweenUsers } = await import("./transactions/transfer-service");
@@ -512,11 +586,8 @@ describe("Citizavrexo-to-Citizavrexo transfers", () => {
     const intended = await createTransferQuote({ userId: "test-user", senderAccountId: "test-account", recipientAccountNumber: "1000001001", amountMinor: 100 });
     const changed = await createTransferQuote({ userId: "test-user", senderAccountId: "test-account", recipientAccountNumber: "1000001001", amountMinor: 200 });
     await authorizeTransferWithPin({ userId: "test-user", quoteId: intended.id, pin: "2468" });
-    expect(() => transferBetweenUsers({ userId: "test-user", actorLabel: "test@example.test", quoteId: changed.id, idempotencyKey: "transfer-pin-changed-0001" })).toThrow("authorization");
-    const reference = transferBetweenUsers({ userId: "test-user", actorLabel: "test@example.test", quoteId: intended.id, idempotencyKey: "transfer-pin-intended-0001" });
-    expect(reference).toMatch(/^NVT-/);
-    expect(database.select().from(transferPinAuthorizations).where(eq(transferPinAuthorizations.quoteId, intended.id)).get()?.consumedAt).toBeTruthy();
-    expect(() => transferBetweenUsers({ userId: "test-user", actorLabel: "test@example.test", quoteId: intended.id, idempotencyKey: "transfer-pin-replay-0001" })).toThrow("already used");
+    expect(() => transferBetweenUsers({ userId: "test-user", actorLabel: "test@example.test", quoteId: changed.id, idempotencyKey: "transfer-pin-changed-0001", authorizationRequestId: "missing" })).toThrow("authorization");
+    expect(() => transferBetweenUsers({ userId: "test-user", actorLabel: "test@example.test", quoteId: intended.id, idempotencyKey: "transfer-pin-intended-0001", authorizationRequestId: "missing" })).toThrow("authorization");
   });
 
   it("changes a PIN only with the current PIN and invalidates outstanding authorizations", async () => {
@@ -528,7 +599,7 @@ describe("Citizavrexo-to-Citizavrexo transfers", () => {
     await expect(changeTransactionPin({ userId: "test-user", actorLabel: "test@example.test", currentPin: "1111", newPin: "1357", confirmation: "1357" })).rejects.toThrow("incorrect");
     await changeTransactionPin({ userId: "test-user", actorLabel: "test@example.test", currentPin: "2468", newPin: "1357", confirmation: "1357" });
     expect(database.select().from(transferPinAuthorizations).where(eq(transferPinAuthorizations.quoteId, quote.id)).get()).toBeUndefined();
-    expect(() => transferBetweenUsers({ userId: "test-user", actorLabel: "test@example.test", quoteId: quote.id, idempotencyKey: "transfer-pin-change-0001" })).toThrow("authorization");
+    expect(() => transferBetweenUsers({ userId: "test-user", actorLabel: "test@example.test", quoteId: quote.id, idempotencyKey: "transfer-pin-change-0001", authorizationRequestId: "missing" })).toThrow("authorization");
     await expect(authorizeTransferWithPin({ userId: "test-user", quoteId: quote.id, pin: "2468" })).rejects.toThrow("incorrect");
     await expect(authorizeTransferWithPin({ userId: "test-user", quoteId: quote.id, pin: "1357" })).resolves.toBeTruthy();
   });
@@ -557,7 +628,9 @@ describe("Citizavrexo-to-Citizavrexo transfers", () => {
   it("atomically transfers funds and creates both histories, notifications, email records, and audit", async () => {
     const { getTransferReceiptForUser, transferBetweenUsers } = await import("./transactions/transfer-service");
     const quoteId = insertQuote({ id: "quote-success-0001", sourceAmountMinor: 3_500 });
-    const reference = transferBetweenUsers({ userId: "test-user", actorLabel: "test@example.test", quoteId, idempotencyKey: "transfer-success-0001" });
+    const idempotencyKey = "transfer-success-0001";
+    const authorizationRequestId = authorizeTransaction(quoteId, idempotencyKey);
+    const reference = transferBetweenUsers({ userId: "test-user", actorLabel: "test@example.test", quoteId, idempotencyKey, authorizationRequestId });
     expect(database.select().from(accounts).where(eq(accounts.id, "test-account")).get()?.balanceMinor).toBe(16_500);
     expect(database.select().from(accounts).where(eq(accounts.id, "recipient-account")).get()?.balanceMinor).toBe(5_500);
     expect(database.select().from(transactions).where(eq(transactions.reference, `${reference}-D`)).get()).toMatchObject({ amountMinor: -3_500, balanceAfterMinor: 16_500 });
@@ -578,7 +651,9 @@ describe("Citizavrexo-to-Citizavrexo transfers", () => {
     const { transferBetweenUsers } = await import("./transactions/transfer-service");
     const { getUserWorkspace } = await import("./repositories/workspace-repository");
     const quoteId = insertQuote({ id: "quote-cross-0001", recipientAccountId: "recipient-usd", sourceAmountMinor: 3_500, recipientAmountMinor: 3_238, recipientCurrency: "EUR" });
-    const reference = transferBetweenUsers({ userId: "test-user", actorLabel: "test@example.test", quoteId, idempotencyKey: "transfer-cross-0001" });
+    const idempotencyKey = "transfer-cross-0001";
+    const authorizationRequestId = authorizeTransaction(quoteId, idempotencyKey);
+    const reference = transferBetweenUsers({ userId: "test-user", actorLabel: "test@example.test", quoteId, idempotencyKey, authorizationRequestId });
     expect(database.select().from(accounts).where(eq(accounts.id, "test-account")).get()?.balanceMinor).toBe(16_500);
     expect(database.select().from(accounts).where(eq(accounts.id, "recipient-usd")).get()?.balanceMinor).toBe(5_238);
     expect(database.select().from(transactions).where(eq(transactions.reference, `${reference}-D`)).get()).toMatchObject({ amountMinor: -3_500, currency: "USD" });
@@ -602,8 +677,8 @@ describe("Citizavrexo-to-Citizavrexo transfers", () => {
     expect(kwd.recipientAmount).toBe(15.363);
     authorizeQuote(jpy.id);
     authorizeQuote(kwd.id);
-    transferBetweenUsers({ userId: "test-user", actorLabel: "test@example.test", quoteId: jpy.id, idempotencyKey: "transfer-jpy-0001" });
-    transferBetweenUsers({ userId: "test-user", actorLabel: "test@example.test", quoteId: kwd.id, idempotencyKey: "transfer-kwd-0001" });
+    transferBetweenUsers({ userId: "test-user", actorLabel: "test@example.test", quoteId: jpy.id, idempotencyKey: "transfer-jpy-0001", authorizationRequestId: authorizeTransaction(jpy.id, "transfer-jpy-0001") });
+    transferBetweenUsers({ userId: "test-user", actorLabel: "test@example.test", quoteId: kwd.id, idempotencyKey: "transfer-kwd-0001", authorizationRequestId: authorizeTransaction(kwd.id, "transfer-kwd-0001") });
     expect(database.select().from(accounts).where(eq(accounts.id, "recipient-jpy")).get()?.balanceMinor).toBe(14_955);
     expect(database.select().from(accounts).where(eq(accounts.id, "recipient-kwd")).get()?.balanceMinor).toBe(15_363);
   });
@@ -613,9 +688,9 @@ describe("Citizavrexo-to-Citizavrexo transfers", () => {
     const expired = insertQuote({ id: "quote-expired-0001", sourceAmountMinor: 100, expiresAt: "2020-01-01T00:00:00.000Z" });
     const wrongUser = insertQuote({ id: "quote-owner-0001", sourceAmountMinor: 100 });
     const insufficient = insertQuote({ id: "quote-insufficient-0001", sourceAmountMinor: 20_001 });
-    expect(() => transferBetweenUsers({ userId: "test-user", actorLabel: "test@example.test", quoteId: expired, idempotencyKey: "transfer-expired-0001" })).toThrow("expired");
-    expect(() => transferBetweenUsers({ userId: "transfer-other", actorLabel: "other-transfer@example.test", quoteId: wrongUser, idempotencyKey: "transfer-owner-0001" })).toThrow("invalid");
-    expect(() => transferBetweenUsers({ userId: "test-user", actorLabel: "test@example.test", quoteId: insufficient, idempotencyKey: "transfer-insufficient-0001" })).toThrow("Insufficient");
+    expect(() => transferBetweenUsers({ userId: "test-user", actorLabel: "test@example.test", quoteId: expired, idempotencyKey: "transfer-expired-0001", authorizationRequestId: "missing" })).toThrow("expired");
+    expect(() => transferBetweenUsers({ userId: "transfer-other", actorLabel: "other-transfer@example.test", quoteId: wrongUser, idempotencyKey: "transfer-owner-0001", authorizationRequestId: "missing" })).toThrow("invalid");
+    expect(() => transferBetweenUsers({ userId: "test-user", actorLabel: "test@example.test", quoteId: insufficient, idempotencyKey: "transfer-insufficient-0001", authorizationRequestId: authorizeTransaction(insufficient, "transfer-insufficient-0001") })).toThrow("Insufficient");
     expect(database.select().from(transferQuotes).where(eq(transferQuotes.id, insufficient)).get()?.consumedAt).toBeNull();
   });
 
@@ -625,7 +700,7 @@ describe("Citizavrexo-to-Citizavrexo transfers", () => {
     try {
       expect(() => findTransferRecipient("test-user", "test-account", "1000001001")).toThrow("sending account is not available");
       const quoteId = insertQuote({ id: "quote-suspended-0001", sourceAmountMinor: 100 });
-      expect(() => transferBetweenUsers({ userId: "test-user", actorLabel: "test@example.test", quoteId, idempotencyKey: "transfer-suspended-0001" })).toThrow("sending account is not available");
+      expect(() => transferBetweenUsers({ userId: "test-user", actorLabel: "test@example.test", quoteId, idempotencyKey: "transfer-suspended-0001", authorizationRequestId: authorizeTransaction(quoteId, "transfer-suspended-0001") })).toThrow("sending account is not available");
       expect(database.select().from(accounts).where(eq(accounts.id, "test-account")).get()?.balanceMinor).toBe(20_000);
       expect(database.select().from(accounts).where(eq(accounts.id, "recipient-account")).get()?.balanceMinor).toBe(2_000);
     } finally {
@@ -636,7 +711,7 @@ describe("Citizavrexo-to-Citizavrexo transfers", () => {
   it("returns one result for duplicate and concurrent submissions and rejects conflicting key reuse", async () => {
     const { transferBetweenUsers } = await import("./transactions/transfer-service");
     const quoteId = insertQuote({ id: "quote-idempotent-0001", sourceAmountMinor: 500 });
-    const input = { userId: "test-user", actorLabel: "test@example.test", quoteId, idempotencyKey: "transfer-idempotent-0001" };
+    const input = { userId: "test-user", actorLabel: "test@example.test", quoteId, idempotencyKey: "transfer-idempotent-0001", authorizationRequestId: authorizeTransaction(quoteId, "transfer-idempotent-0001") };
     const [first, second] = await Promise.all([Promise.resolve().then(() => transferBetweenUsers(input)), Promise.resolve().then(() => transferBetweenUsers(input))]);
     expect(second).toBe(first);
     expect(database.select().from(internalTransfers).where(eq(internalTransfers.idempotencyKey, input.idempotencyKey)).all()).toHaveLength(1);
@@ -648,8 +723,9 @@ describe("Citizavrexo-to-Citizavrexo transfers", () => {
   it("rejects quote replay with a new idempotency key", async () => {
     const { transferBetweenUsers } = await import("./transactions/transfer-service");
     const quoteId = insertQuote({ id: "quote-replay-0001", sourceAmountMinor: 250 });
-    transferBetweenUsers({ userId: "test-user", actorLabel: "test@example.test", quoteId, idempotencyKey: "transfer-replay-0001" });
-    expect(() => transferBetweenUsers({ userId: "test-user", actorLabel: "test@example.test", quoteId, idempotencyKey: "transfer-replay-0002" })).toThrow("already used");
+    const authorizationRequestId = authorizeTransaction(quoteId, "transfer-replay-0001");
+    transferBetweenUsers({ userId: "test-user", actorLabel: "test@example.test", quoteId, idempotencyKey: "transfer-replay-0001", authorizationRequestId });
+    expect(() => transferBetweenUsers({ userId: "test-user", actorLabel: "test@example.test", quoteId, idempotencyKey: "transfer-replay-0002", authorizationRequestId })).toThrow("already used");
     expect(database.select().from(accounts).where(eq(accounts.id, "test-account")).get()?.balanceMinor).toBe(19_750);
   });
 
@@ -658,7 +734,7 @@ describe("Citizavrexo-to-Citizavrexo transfers", () => {
     sqlite.exec("CREATE TRIGGER fail_transfer_notification BEFORE INSERT ON notifications WHEN NEW.title = 'Transfer completed' BEGIN SELECT RAISE(ABORT, 'forced transfer failure'); END;");
     try {
       const quoteId = insertQuote({ id: "quote-rollback-0001", sourceAmountMinor: 700 });
-      expect(() => transferBetweenUsers({ userId: "test-user", actorLabel: "test@example.test", quoteId, idempotencyKey: "transfer-rollback-0001" })).toThrow("forced transfer failure");
+      expect(() => transferBetweenUsers({ userId: "test-user", actorLabel: "test@example.test", quoteId, idempotencyKey: "transfer-rollback-0001", authorizationRequestId: authorizeTransaction(quoteId, "transfer-rollback-0001") })).toThrow("forced transfer failure");
       expect(database.select().from(accounts).where(eq(accounts.id, "test-account")).get()?.balanceMinor).toBe(20_000);
       expect(database.select().from(accounts).where(eq(accounts.id, "recipient-account")).get()?.balanceMinor).toBe(2_000);
       expect(database.select().from(internalTransfers).where(eq(internalTransfers.idempotencyKey, "transfer-rollback-0001")).get()).toBeUndefined();
@@ -672,7 +748,8 @@ describe("Citizavrexo-to-Citizavrexo transfers", () => {
     const { transferBetweenUsers } = await import("./transactions/transfer-service");
     const { getUserWorkspace } = await import("./repositories/workspace-repository");
     const quoteId = insertQuote({ id: "quote-visibility-0001", sourceAmountMinor: 900 });
-    const reference = transferBetweenUsers({ userId: "test-user", actorLabel: "test@example.test", quoteId, idempotencyKey: "transfer-visibility-0001" });
+    const idempotencyKey = "transfer-visibility-0001";
+    const reference = transferBetweenUsers({ userId: "test-user", actorLabel: "test@example.test", quoteId, idempotencyKey, authorizationRequestId: authorizeTransaction(quoteId, idempotencyKey) });
     const sender = await getUserWorkspace("test-user");
     const recipient = await getUserWorkspace("transfer-recipient");
     expect(sender?.transactions.some((row) => row.reference === `${reference}-D`)).toBe(true);

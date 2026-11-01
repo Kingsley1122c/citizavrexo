@@ -1,12 +1,12 @@
 import "server-only";
 
 import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
-import type { Account, AuditEvent, AuthorizedDevice, BankDestination, CardRequest, CurrencyChangeRequest, ManagedCard, Notification, RecoveryRequest, Transaction, User, UserProfile, WithdrawalRequest } from "@/lib/domain";
+import type { Account, AuditEvent, AuthorizedDevice, BankDestination, CardRequest, CurrencyChangeRequest, ManagedCard, Notification, RecoveryRequest, Transaction, TransactionAuthorizationRequest, User, UserProfile, WithdrawalRequest } from "@/lib/domain";
 import type { AdminRole } from "@/lib/domain";
 import { hasPermission } from "@/lib/auth/permissions";
 import { getCustomerServiceContact, type CustomerServiceContact } from "@/lib/customer-service";
 import { db } from "@/lib/db/client";
-import { accounts, adminMessages, auditEvents, bankDestinations, cardRequests, cards, credentials, currencyChangeRequests, devices, internalTransfers, notifications, recoveryRequests, transactions, users, userProfiles, withdrawalAuthorizationAttempts, withdrawalAuthorizationCodes, withdrawalRequests } from "@/lib/db/schema";
+import { accounts, adminMessages, auditEvents, bankDestinations, cardRequests, cards, credentials, currencyChangeRequests, devices, internalTransfers, notifications, recoveryRequests, transactionAuthorizationCodes, transactionAuthorizationRequests, transactions, users, userProfiles, withdrawalAuthorizationAttempts, withdrawalAuthorizationCodes, withdrawalRequests } from "@/lib/db/schema";
 import { getUserProfile, profileSummary } from "@/lib/users/profile-service";
 import { minorToMajor } from "@/lib/money";
 
@@ -132,10 +132,22 @@ export async function getAdminWorkspace(role: AdminRole) {
   }).from(withdrawalAuthorizationCodes).leftJoin(users, eq(withdrawalAuthorizationCodes.issuedBy, users.id)).where(inArray(withdrawalAuthorizationCodes.withdrawalRequestId, withdrawalRequestIds)).orderBy(desc(withdrawalAuthorizationCodes.issuedAt)) : [];
   const authorizationAttemptRows = withdrawalRequestIds.length ? await db.select().from(withdrawalAuthorizationAttempts).where(inArray(withdrawalAuthorizationAttempts.withdrawalRequestId, withdrawalRequestIds)).orderBy(desc(withdrawalAuthorizationAttempts.createdAt)) : [];
   const currencyChangeRows = hasPermission(role, "accounts.currency.review") ? await db.select({ request: currencyChangeRequests, userName: users.name, accountNumber: accounts.number }).from(currencyChangeRequests).innerJoin(users, eq(currencyChangeRequests.userId, users.id)).innerJoin(accounts, eq(currencyChangeRequests.accountId, accounts.id)).where(isNull(users.deletedAt)).orderBy(desc(currencyChangeRequests.requestedAt)) : [];
+  const transactionAuthorizationRows = hasPermission(role, "transactions.authorize") ? await db.select().from(transactionAuthorizationRequests).orderBy(desc(transactionAuthorizationRequests.requestedAt)) : [];
+  const transactionAuthorizationIds = transactionAuthorizationRows.map((request) => request.id);
+  const transactionAuthorizationCodeRows = transactionAuthorizationIds.length ? await db.select().from(transactionAuthorizationCodes).where(inArray(transactionAuthorizationCodes.requestId, transactionAuthorizationIds)).orderBy(desc(transactionAuthorizationCodes.issuedAt)) : [];
+  const adminUserById = new Map(userRows.map((user) => [user.id, user]));
   return {
     users: userRows.map((row) => ({ id: row.id, name: row.name, email: row.email, avatarInitials: row.avatarInitials, profileImageUrl: row.profileImageKey && row.profileImageUpdatedAt ? `/profile-image/${row.id}?v=${encodeURIComponent(row.profileImageUpdatedAt)}` : undefined, status: row.status, locale: row.locale, displayCurrency: row.displayCurrency, suspensionReason: row.suspensionReason ?? undefined, suspendedBy: row.suspendedBy ?? undefined, suspendedAt: row.suspendedAt ?? undefined, emailVerified: Boolean(row.emailVerifiedAt), createdAt: row.createdAt, adminRole: row.adminRole })),
     accounts: accountRows.map((row) => ({ ...row, balance: minorToMajor(row.balanceMinor, row.currency) })),
     transactions: transactionRows.map((row) => ({ ...row, amount: minorToMajor(row.amountMinor, row.currency), balanceBefore: minorToMajor(row.balanceBeforeMinor, row.currency), balanceAfter: minorToMajor(row.balanceAfterMinor, row.currency) })),
+    transactionAuthorizationRequests: transactionAuthorizationRows.map((request): TransactionAuthorizationRequest => {
+      const customer = adminUserById.get(request.userId);
+      const sender = adminAccountById.get(request.senderAccountId);
+      const recipient = adminAccountById.get(request.recipientAccountId);
+      const recipientUser = recipient ? adminUserById.get(recipient.userId) : undefined;
+      const latestCode = transactionAuthorizationCodeRows.find((code) => code.requestId === request.id);
+      return { id: request.id, reference: request.reference, userId: request.userId, userName: customer?.name ?? "Unavailable customer", userEmail: customer?.email ?? "Unavailable", senderAccountName: sender?.name ?? "Unavailable account", senderAccountNumber: sender?.number ?? "", recipientName: recipientUser?.name ?? "Unavailable recipient", recipientAccountNumber: recipient?.number ?? "", sourceAmount: minorToMajor(request.sourceAmountMinor, request.sourceCurrency), sourceCurrency: request.sourceCurrency, recipientAmount: minorToMajor(request.recipientAmountMinor, request.recipientCurrency), recipientCurrency: request.recipientCurrency, status: request.status, requestedAt: request.requestedAt, codeStatus: latestCode?.status, codeIssuedAt: latestCode?.issuedAt, codeExpiresAt: latestCode?.expiresAt, transferReference: request.transferReference ?? undefined };
+    }),
     cards: cardRows.map((row) => ({ ...row, monthlyLimit: minorToMajor(row.monthlyLimitMinor, adminAccountById.get(row.accountId)?.currency ?? "USD"), monthlySpent: minorToMajor(row.monthlySpentMinor, adminAccountById.get(row.accountId)?.currency ?? "USD") })),
     cardRequests: cardRequestRows.map(({ request, userName, userEmail, accountName }) => ({ ...request, userName, userEmail, accountName, monthlyLimit: minorToMajor(request.monthlyLimitMinor, request.currency), cardId: request.cardId ?? undefined, rejectionReason: request.rejectionReason ?? undefined, reviewedBy: request.reviewedBy ?? undefined, reviewedAt: request.reviewedAt ?? undefined })),
     profiles: profileRows.map(({ profile, userName, userEmail }) => ({ ...profileSummary(profile), userId: profile.userId, userName, userEmail, updatedAt: profile.updatedAt })),

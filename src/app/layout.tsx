@@ -2,7 +2,6 @@
 import { connection } from "next/server";
 import type { ReactNode } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
-import { TriangleAlert } from "lucide-react";
 import { DeploymentGuard } from "@/components/deployment-guard";
 import "./globals.css";
 
@@ -49,21 +48,14 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: { children: ReactNode }) {
   await connection();
   const deploymentId = process.env.RENDER_GIT_COMMIT ?? "development";
-  const usesEphemeralStorage = process.env.STORAGE_MODE === "ephemeral";
   return (
     <html
       lang="en"
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className={`min-h-full${usesEphemeralStorage ? " ephemeral-storage" : ""}`}>
+      <body className="min-h-full">
         <DeploymentGuard deploymentId={deploymentId} />
-        {usesEphemeralStorage && (
-          <aside className="storage-reset-notice" aria-label="Temporary storage notice">
-            <TriangleAlert aria-hidden="true" size={15} />
-            <span>Temporary storage: accounts, activity, and uploaded images reset when this service restarts.</span>
-          </aside>
-        )}
         {children}
       </body>
     </html>

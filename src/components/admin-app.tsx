@@ -12,9 +12,10 @@ import { AdminCardRequests } from "@/components/admin-card-requests";
 import { AdminProfileReviews } from "@/components/admin-profile-reviews";
 import { AdminWithdrawalRequests } from "@/components/admin-withdrawal-requests";
 import { AdminCurrencyChangeRequests } from "@/components/admin-currency-change-requests";
+import { AdminTransactionAuthorizations } from "@/components/admin-transaction-authorizations";
 import { DeleteUserDialog } from "@/components/delete-user-dialog";
 import { CreditAccountDialog, UserStatusDialog } from "@/components/admin-customer-controls";
-import type { Account, AdminMessage, AdminRole, AuditEvent, CardRequest, CurrencyChangeRequest, ManagedCard, RecoveryRequest, Transaction, User, UserProfile, WithdrawalRequest } from "@/lib/domain";
+import type { Account, AdminMessage, AdminRole, AuditEvent, CardRequest, CurrencyChangeRequest, ManagedCard, RecoveryRequest, Transaction, TransactionAuthorizationRequest, User, UserProfile, WithdrawalRequest } from "@/lib/domain";
 import type { Permission } from "@/lib/auth/permissions";
 import { formatCurrencyAmount } from "@/lib/currency";
 import { AdminMessagePanel } from "@/components/admin-message-panel";
@@ -22,15 +23,16 @@ import { BrandLogo } from "@/components/brand-logo";
 
 type AdminNotification = { id: string; userId: string; kind: string; title: string; message: string; createdAt: string; read: boolean; important: boolean; eventReference?: string };
 type ReviewProfile = UserProfile & { userId: string; userName: string; userEmail: string; updatedAt: string };
-type Data = { users: User[]; accounts: Account[]; transactions: Transaction[]; cards: ManagedCard[]; cardRequests: CardRequest[]; profiles: ReviewProfile[]; withdrawalRequests: WithdrawalRequest[]; currencyChangeRequests: CurrencyChangeRequest[]; notifications: AdminNotification[]; adminMessages: AdminMessage[]; recoveryRequests: RecoveryRequest[]; auditEvents: AuditEvent[] };
+type Data = { users: User[]; accounts: Account[]; transactions: Transaction[]; transactionAuthorizationRequests: TransactionAuthorizationRequest[]; cards: ManagedCard[]; cardRequests: CardRequest[]; profiles: ReviewProfile[]; withdrawalRequests: WithdrawalRequest[]; currencyChangeRequests: CurrencyChangeRequest[]; notifications: AdminNotification[]; adminMessages: AdminMessage[]; recoveryRequests: RecoveryRequest[]; auditEvents: AuditEvent[] };
 type Identity = { id: string; name: string; role: AdminRole; permissions: Permission[] };
-type View = "Dashboard" | "Users" | "Accounts" | "Transactions" | "Profile reviews" | "Card requests" | "Withdrawal requests" | "Currency requests" | "Notifications" | "Recovery" | "Security" | "Reports" | "Audit logs" | "Settings";
+type View = "Dashboard" | "Users" | "Accounts" | "Transactions" | "Transaction codes" | "Profile reviews" | "Card requests" | "Withdrawal requests" | "Currency requests" | "Notifications" | "Recovery" | "Security" | "Reports" | "Audit logs" | "Settings";
 
 const nav: { label: View; icon: typeof LayoutDashboard; permission: Permission }[] = [
   { label: "Dashboard", icon: LayoutDashboard, permission: "admin.dashboard.read" },
   { label: "Users", icon: Users, permission: "users.read" },
   { label: "Accounts", icon: Landmark, permission: "accounts.read" },
   { label: "Transactions", icon: Activity, permission: "transactions.read" },
+  { label: "Transaction codes", icon: ShieldCheck, permission: "transactions.authorize" },
   { label: "Profile reviews", icon: UserRoundSearch, permission: "profiles.review" },
   { label: "Card requests", icon: CreditCard, permission: "cards.review" },
   { label: "Withdrawal requests", icon: ArrowDownLeft, permission: "withdrawals.review" },
@@ -152,6 +154,7 @@ function RecordsView({ view, data, identity, query, setQuery, status, setStatus 
   const table = view === "Users" ? <UserRows rows={users} data={data} canDelete={identity.permissions.includes("users.delete")} canSuspend={identity.permissions.includes("users.suspend")} canMessage={identity.permissions.includes("notifications.manage")} actorId={identity.id}/> : view === "Accounts" ? <AccountRows rows={accounts} users={data.users} canCredit={identity.permissions.includes("accounts.credit")}/> : view === "Transactions" ? <TransactionRows rows={transactions}/> : view === "Notifications" ? <NotificationRows rows={notifications}/> : view === "Recovery" ? <RecoveryRows rows={recovery}/> : view === "Audit logs" ? <AuditRows rows={audits}/> : null;
 
   if (view === "Card requests") return <AdminCardRequests requests={data.cardRequests} cards={data.cards}/>;
+  if (view === "Transaction codes") return <AdminTransactionAuthorizations requests={data.transactionAuthorizationRequests}/>;
   if (view === "Profile reviews") return <AdminProfileReviews profiles={data.profiles}/>;
   if (view === "Withdrawal requests") return <AdminWithdrawalRequests requests={data.withdrawalRequests}/>;
   if (view === "Currency requests") return <AdminCurrencyChangeRequests requests={data.currencyChangeRequests}/>;

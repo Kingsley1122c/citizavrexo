@@ -15,7 +15,7 @@ describe.skipIf(!enabled)("live cross-currency transfer gate", () => {
     const { eq } = await import("drizzle-orm");
     const { currencyFractionDigits } = await import("@/lib/currency");
     const { db } = await import("@/lib/db/client");
-    const { accounts, internalTransfers, transactions, transferPinAuthorizations, transferQuotes } = await import("@/lib/db/schema");
+    const { accounts, internalTransfers, transactionAuthorizationCodes, transactionAuthorizationRequests, transactions, transferPinAuthorizations, transferQuotes } = await import("@/lib/db/schema");
     const { createTransferQuote, getTransferReceiptForUser, transferBetweenUsers } = await import("@/lib/transactions/transfer-service");
 
     for (const [fromCurrency, toCurrency] of pairs) {
@@ -31,8 +31,12 @@ describe.skipIf(!enabled)("live cross-currency transfer gate", () => {
       db.insert(transferPinAuthorizations).values({ id: `${quote.id}-live-pin`, userId: "qa-local-customer", quoteId: quote.id, expiresAt: quote.expiresAt, createdAt: new Date().toISOString() }).run();
 
       const idempotencyKey = `live-gate-${fromCurrency.toLowerCase()}-${toCurrency.toLowerCase()}-20260915`;
-      const reference = transferBetweenUsers({ userId: "qa-local-customer", actorLabel: "qa.customer@local.test", quoteId: quote.id, idempotencyKey });
-      expect(transferBetweenUsers({ userId: "qa-local-customer", actorLabel: "qa.customer@local.test", quoteId: quote.id, idempotencyKey })).toBe(reference);
+      const authorizationRequestId = `${quote.id}-live-authorization`;
+      const timestamp = new Date().toISOString();
+      db.insert(transactionAuthorizationRequests).values({ id: authorizationRequestId, reference: `NVA-${quote.id}`, userId: "qa-local-customer", quoteId: quote.id, pinAuthorizationId: `${quote.id}-live-pin`, idempotencyKey, senderAccountId, recipientAccountId: persistedQuote.recipientAccountId, sourceAmountMinor: persistedQuote.sourceAmountMinor, sourceCurrency: persistedQuote.sourceCurrency, recipientAmountMinor: persistedQuote.recipientAmountMinor, recipientCurrency: persistedQuote.recipientCurrency, exchangeRate: persistedQuote.exchangeRate, rateDate: persistedQuote.rateDate, rateTimestamp: persistedQuote.rateTimestamp, rateProvider: persistedQuote.rateProvider, status: "code_issued", requestedAt: timestamp }).run();
+      db.insert(transactionAuthorizationCodes).values({ id: `${authorizationRequestId}-code`, requestId: authorizationRequestId, userId: "qa-local-customer", codeHash: `${authorizationRequestId}-test-hash`, status: "verified", issuedBy: "qa-local-admin", issuedAt: timestamp, expiresAt: quote.expiresAt, verifiedAt: timestamp }).run();
+      const reference = transferBetweenUsers({ userId: "qa-local-customer", actorLabel: "qa.customer@local.test", quoteId: quote.id, idempotencyKey, authorizationRequestId });
+      expect(transferBetweenUsers({ userId: "qa-local-customer", actorLabel: "qa.customer@local.test", quoteId: quote.id, idempotencyKey, authorizationRequestId })).toBe(reference);
       const transfer = db.select().from(internalTransfers).where(eq(internalTransfers.reference, reference)).get()!;
       expect(transfer).toMatchObject({ amountMinor, currency: fromCurrency, recipientAmountMinor: persistedQuote.recipientAmountMinor, recipientCurrency: toCurrency, exchangeRate: persistedQuote.exchangeRate, rateDate: persistedQuote.rateDate, rateTimestamp: persistedQuote.rateTimestamp, rateProvider: "open_exchange_rates" });
       const ledgerEntries = db.select().from(transactions).all().filter((entry) => entry.reference === `${reference}-D` || entry.reference === `${reference}-C`);

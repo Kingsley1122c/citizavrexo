@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { db } from "@/lib/db/client";
-import { accounts, auditEvents, emailOutbox, internalTransfers, notifications, transactions, transferPinAuthorizations, transferQuotes, users } from "@/lib/db/schema";
+import { accounts, auditEvents, emailOutbox, internalTransfers, notifications, transactionAuthorizationCodes, transactionAuthorizationRequests, transactions, transferPinAuthorizations, transferQuotes, users } from "@/lib/db/schema";
 import type { Currency, TransferReceipt } from "@/lib/domain";
 import { convertMinorAmount } from "@/lib/exchange-rates/decimal";
 import { getExchangeRateProvider } from "@/lib/exchange-rates/provider";
@@ -20,6 +20,7 @@ type TransferInput = {
   actorLabel: string;
   quoteId: string;
   idempotencyKey: string;
+  authorizationRequestId: string;
 };
 
 const idempotencyPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/;
@@ -111,6 +112,10 @@ export function transferBetweenUsers(input: TransferInput): string {
     if (!quote) throw new TransferError("This transfer quote is invalid, expired, or already used. Review the transfer again.");
     const authorization = tx.select().from(transferPinAuthorizations).where(and(eq(transferPinAuthorizations.userId, input.userId), eq(transferPinAuthorizations.quoteId, quote.id), isNull(transferPinAuthorizations.consumedAt), gt(transferPinAuthorizations.expiresAt, now))).get();
     if (!authorization) throw new TransferError("Transaction PIN authorization is invalid or expired. Enter your PIN again.");
+    const transactionAuthorization = tx.select().from(transactionAuthorizationRequests).where(and(eq(transactionAuthorizationRequests.id, input.authorizationRequestId), eq(transactionAuthorizationRequests.userId, input.userId), eq(transactionAuthorizationRequests.quoteId, quote.id), eq(transactionAuthorizationRequests.pinAuthorizationId, authorization.id), eq(transactionAuthorizationRequests.idempotencyKey, input.idempotencyKey), eq(transactionAuthorizationRequests.status, "code_issued"))).get();
+    const verifiedCode = transactionAuthorization ? tx.select().from(transactionAuthorizationCodes).where(and(eq(transactionAuthorizationCodes.requestId, transactionAuthorization.id), eq(transactionAuthorizationCodes.userId, input.userId), eq(transactionAuthorizationCodes.status, "verified"))).get() : undefined;
+    const snapshotMatches = transactionAuthorization && transactionAuthorization.senderAccountId === quote.senderAccountId && transactionAuthorization.recipientAccountId === quote.recipientAccountId && transactionAuthorization.sourceAmountMinor === quote.sourceAmountMinor && transactionAuthorization.sourceCurrency === quote.sourceCurrency && transactionAuthorization.recipientAmountMinor === quote.recipientAmountMinor && transactionAuthorization.recipientCurrency === quote.recipientCurrency && transactionAuthorization.exchangeRate === quote.exchangeRate && transactionAuthorization.rateDate === quote.rateDate && transactionAuthorization.rateTimestamp === quote.rateTimestamp && transactionAuthorization.rateProvider === quote.rateProvider;
+    if (!transactionAuthorization || !verifiedCode || !snapshotMatches) throw new TransferError("A valid transaction authorization code is required for this exact transfer.");
     const sender = tx.select({ account: accounts, user: users }).from(accounts).innerJoin(users, eq(accounts.userId, users.id)).where(and(eq(accounts.id, quote.senderAccountId), eq(accounts.userId, input.userId))).get();
     if (!sender || sender.user.status !== "active" || sender.user.deletedAt) throw new TransferError("The sending account is not available.");
     const recipient = tx.select({ account: accounts, user: users }).from(accounts).innerJoin(users, eq(accounts.userId, users.id)).where(eq(accounts.id, quote.recipientAccountId)).get();
@@ -133,6 +138,8 @@ export function transferBetweenUsers(input: TransferInput): string {
     if (quoteClaim.changes !== 1) throw new TransferError("This transfer quote is invalid, expired, or already used. Review the transfer again.");
     const authorizationClaim = tx.update(transferPinAuthorizations).set({ consumedAt: now }).where(and(eq(transferPinAuthorizations.id, authorization.id), isNull(transferPinAuthorizations.consumedAt), gt(transferPinAuthorizations.expiresAt, now))).run();
     if (authorizationClaim.changes !== 1) throw new TransferError("Transaction PIN authorization is invalid or expired. Enter your PIN again.");
+    const transactionAuthorizationClaim = tx.update(transactionAuthorizationRequests).set({ status: "completed", completedAt: now, transferReference: reference }).where(and(eq(transactionAuthorizationRequests.id, transactionAuthorization.id), eq(transactionAuthorizationRequests.status, "code_issued"))).run();
+    if (transactionAuthorizationClaim.changes !== 1) throw new TransferError("Transaction authorization is invalid or already used.");
     const senderUpdate = tx.update(accounts).set({ balanceMinor: senderAfter, updatedAt: now }).where(and(eq(accounts.id, sender.account.id), eq(accounts.balanceMinor, sender.account.balanceMinor), eq(accounts.currency, quote.sourceCurrency), eq(accounts.status, "active"))).run();
     if (senderUpdate.changes !== 1) throw new TransferError("Your balance changed. Review the transfer again.");
     const recipientUpdate = tx.update(accounts).set({ balanceMinor: recipientAfter, updatedAt: now }).where(and(eq(accounts.id, recipient.account.id), eq(accounts.balanceMinor, recipient.account.balanceMinor), eq(accounts.currency, quote.recipientCurrency), eq(accounts.status, "active"))).run();

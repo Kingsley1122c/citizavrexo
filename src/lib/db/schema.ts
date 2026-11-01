@@ -201,6 +201,64 @@ export const transferPinAuthorizations = sqliteTable("transfer_pin_authorization
   createdAt: text("created_at").notNull(),
 }, (table) => [uniqueIndex("transfer_pin_authorizations_quote_unique").on(table.quoteId)]);
 
+export const transactionAuthorizationRequests = sqliteTable("transaction_authorization_requests", {
+  id: text("id").primaryKey(),
+  reference: text("reference").notNull(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  quoteId: text("quote_id").notNull().references(() => transferQuotes.id, { onDelete: "restrict" }),
+  pinAuthorizationId: text("pin_authorization_id").notNull().references(() => transferPinAuthorizations.id, { onDelete: "restrict" }),
+  idempotencyKey: text("idempotency_key").notNull(),
+  senderAccountId: text("sender_account_id").notNull().references(() => accounts.id, { onDelete: "restrict" }),
+  recipientAccountId: text("recipient_account_id").notNull().references(() => accounts.id, { onDelete: "restrict" }),
+  sourceAmountMinor: integer("source_amount_minor").notNull(),
+  sourceCurrency: text("source_currency", { enum: SUPPORTED_CURRENCIES }).notNull(),
+  recipientAmountMinor: integer("recipient_amount_minor").notNull(),
+  recipientCurrency: text("recipient_currency", { enum: SUPPORTED_CURRENCIES }).notNull(),
+  exchangeRate: text("exchange_rate").notNull(),
+  rateDate: text("rate_date").notNull(),
+  rateTimestamp: text("rate_timestamp").notNull(),
+  rateProvider: text("rate_provider").notNull(),
+  status: text("status", { enum: ["pending", "code_issued", "completed", "expired", "cancelled"] }).notNull().default("pending"),
+  requestedAt: text("requested_at").notNull(),
+  completedAt: text("completed_at"),
+  transferReference: text("transfer_reference"),
+}, (table) => [
+  uniqueIndex("transaction_authorization_requests_reference_unique").on(table.reference),
+  uniqueIndex("transaction_authorization_requests_idempotency_unique").on(table.idempotencyKey),
+  uniqueIndex("transaction_authorization_requests_quote_unique").on(table.quoteId),
+]);
+
+export const transactionAuthorizationCodes = sqliteTable("transaction_authorization_codes", {
+  id: text("id").primaryKey(),
+  requestId: text("request_id").notNull().references(() => transactionAuthorizationRequests.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  codeHash: text("code_hash").notNull(),
+  status: text("status", { enum: ["issued", "verified", "revoked", "expired"] }).notNull().default("issued"),
+  issuedBy: text("issued_by").notNull().references(() => users.id, { onDelete: "restrict" }),
+  issuedAt: text("issued_at").notNull(),
+  expiresAt: text("expires_at").notNull(),
+  verifiedAt: text("verified_at"),
+  revokedAt: text("revoked_at"),
+  revokedBy: text("revoked_by").references(() => users.id, { onDelete: "restrict" }),
+  failedAttempts: integer("failed_attempts").notNull().default(0),
+  lockedUntil: text("locked_until"),
+  lastFailedAt: text("last_failed_at"),
+  replacedByCodeId: text("replaced_by_code_id"),
+}, (table) => [
+  uniqueIndex("transaction_authorization_codes_hash_unique").on(table.codeHash),
+  uniqueIndex("transaction_authorization_codes_request_active_unique").on(table.requestId).where(sql`${table.status} = 'issued'`),
+]);
+
+export const transactionAuthorizationAttempts = sqliteTable("transaction_authorization_attempts", {
+  id: text("id").primaryKey(),
+  requestId: text("request_id").notNull().references(() => transactionAuthorizationRequests.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  codeId: text("code_id").references(() => transactionAuthorizationCodes.id, { onDelete: "set null" }),
+  outcome: text("outcome", { enum: ["success", "failure", "blocked", "expired", "revoked"] }).notNull(),
+  reason: text("reason").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (table) => [uniqueIndex("transaction_authorization_attempts_identity_unique").on(table.id)]);
+
 export const currencyChangeRequests = sqliteTable("currency_change_requests", {
   id: text("id").primaryKey(),
   accountId: text("account_id").notNull().references(() => accounts.id, { onDelete: "restrict" }),
