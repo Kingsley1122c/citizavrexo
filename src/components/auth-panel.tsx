@@ -29,6 +29,7 @@ import {
 import { localizeAuthStateMessage, userUi } from "@/lib/i18n/user-ui";
 import { CurrencySelector } from "@/components/currency-selector";
 import { BrandLogo } from "@/components/brand-logo";
+import { BrandedStatus } from "@/components/branded-status";
 
 type AuthAction = (state: AuthState, formData: FormData) => Promise<AuthState>;
 type UsernameStatus = "idle" | "checking" | "available" | "taken" | "invalid" | "unavailable";
@@ -61,6 +62,7 @@ export function AuthPanel({
   const usernameInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const [locale, setLocale] = useState<Locale>("en");
+  const [localeReady, setLocaleReady] = useState(false);
   const localeHydrated = useRef(false);
   const [state, formAction, pending] = useActionState(action, {});
   useEffect(() => {
@@ -70,6 +72,7 @@ export function AuthPanel({
       const stored = localStorage.getItem("Citizavrexo-locale");
       localeHydrated.current = true;
       setLocale(stored ? resolveSupportedLocale(stored) : resolveSupportedLocale(navigator.language));
+      setLocaleReady(true);
     });
     return () => { cancelled = true; };
   }, []);
@@ -231,10 +234,8 @@ export function AuthPanel({
                 <legend className="sr-only">Language and personal information</legend>
                 <div className="registration-language-selector">
                   <b><Globe2 size={17} />{t.app.language}</b>
-                  <button className="language-trigger" type="button" aria-haspopup="dialog" aria-expanded={languageOpen} onClick={() => setLanguageOpen(true)}>
-                    <span className="language-flag" aria-hidden="true">{localeFlags[locale]}</span>
-                    <span><b>{localeNames[locale]}</b><small>{locale}</small></span>
-                    <ChevronDown size={18} aria-hidden="true" />
+                  <button className="language-trigger" type="button" aria-haspopup="dialog" aria-expanded={languageOpen} aria-busy={!localeReady} disabled={!localeReady} onClick={() => setLanguageOpen(true)}>
+                    {!localeReady ? <BrandedStatus compact message="Loading language preferences..." /> : <><span className="language-flag" aria-hidden="true">{localeFlags[locale]}</span><span><b>{localeNames[locale]}</b><small>{locale}</small></span><ChevronDown size={18} aria-hidden="true" /></>}
                   </button>
                   {languageOpen && <div className="language-popup-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setLanguageOpen(false); }}>
                     <section className="language-popup" role="dialog" aria-modal="true" aria-labelledby="language-popup-title">
@@ -250,8 +251,8 @@ export function AuthPanel({
                 <label>{t.auth.fullName}<span><UserRound size={17} /><input name="name" autoComplete="name" placeholder={t.auth.fullNamePlaceholder} value={registration.name} onChange={(event) => { updateRegistration("name", event.target.value); if (!usernameEdited) setSuggestionHistory([]); }} required minLength={2} maxLength={100} /></span></label>
                 <div className="registration-username-field">
                   <div className="registration-field-heading"><label htmlFor="registration-username">Username</label><button type="button" disabled={registration.name.trim().length < 2 || usernameStatus === "checking"} onClick={generateAnotherUsername}><RefreshCw size={13} />Generate another</button></div>
-                  <span className={`registration-input username-${usernameStatus}`}><AtSign size={17} /><input ref={usernameInputRef} id="registration-username" name="username" autoComplete="username" placeholder="Suggested from your name" value={registration.username} onChange={(event) => { const value = event.target.value; setUsernameEdited(true); updateRegistration("username", value); setUsernameStatus(!value ? "idle" : value.length < 3 || value.length > 30 || !usernamePattern.test(value) ? "invalid" : "checking"); }} aria-describedby="username-availability" required minLength={3} maxLength={30} pattern="[A-Za-z0-9](?:[A-Za-z0-9._]*[A-Za-z0-9])?" />{usernameStatus === "checking" && <span className="username-spinner" aria-hidden="true" />}</span>
-                  <small id="username-availability" className={`username-status username-status-${usernameStatus}`} role="status">{usernameStatusText}</small>
+                  <span className={`registration-input username-${usernameStatus}`}><AtSign size={17} /><input ref={usernameInputRef} id="registration-username" name="username" autoComplete="username" placeholder="Suggested from your name" value={registration.username} onChange={(event) => { const value = event.target.value; setUsernameEdited(true); updateRegistration("username", value); setUsernameStatus(!value ? "idle" : value.length < 3 || value.length > 30 || !usernamePattern.test(value) ? "invalid" : "checking"); }} aria-describedby="username-availability" required minLength={3} maxLength={30} pattern="[A-Za-z0-9](?:[A-Za-z0-9._]*[A-Za-z0-9])?" /></span>
+                  <div id="username-availability" className={`username-status username-status-${usernameStatus}`}>{usernameStatus === "checking" ? <BrandedStatus compact message="Checking username availability..." /> : usernameStatus === "available" ? <BrandedStatus compact variant="success" message={usernameStatusText} /> : usernameStatus === "taken" || usernameStatus === "invalid" || usernameStatus === "unavailable" ? <BrandedStatus compact variant="error" message={usernameStatusText} /> : usernameStatusText}</div>
                 </div>
                 <label>{t.auth.emailAddress}<span><Mail size={17} /><input name="email" type="email" autoComplete="email" placeholder="you@example.com" value={registration.email} onChange={(event) => updateRegistration("email", event.target.value)} required /></span></label>
                 <button type="button" className="button primary auth-submit" onClick={continueRegistration}>Continue <ArrowRight size={18} /></button>
@@ -269,8 +270,9 @@ export function AuthPanel({
                 <label>{t.app.securityView.transactionPin}<span><LockKeyhole size={17} /><input name="pin" type={showPin ? "text" : "password"} inputMode="numeric" pattern="[0-9]{4}" minLength={4} maxLength={4} autoComplete="new-password" placeholder="0000" value={registration.pin} onChange={(event) => updateRegistration("pin", event.target.value)} required /><button type="button" aria-label={showPin ? t.auth.hidePassword : t.auth.showPassword} onClick={() => setShowPin(!showPin)}><Eye size={17} /></button></span></label>
                 <label>Confirm {t.app.securityView.transactionPin}<span><LockKeyhole size={17} /><input name="pinConfirmation" type={showPin ? "text" : "password"} inputMode="numeric" pattern="[0-9]{4}" minLength={4} maxLength={4} autoComplete="new-password" placeholder="0000" value={registration.pinConfirmation} onChange={(event) => updateRegistration("pinConfirmation", event.target.value)} required /></span></label>
                 <dl className="registration-review"><div><dt>Name</dt><dd>{registration.name}</dd></div><div><dt>Username</dt><dd>@{registration.username.toLowerCase()}</dd></div><div><dt>Email</dt><dd>{registration.email}</dd></div><div><dt>Language</dt><dd>{localeNames[locale]}</dd></div></dl>
-                {state.error && localizeAuthStateMessage(locale, state.error) && <p className="auth-message error" role="alert">{localizeAuthStateMessage(locale, state.error)}</p>}
-                {state.success && <p className="auth-message success" role="status">{localizeAuthStateMessage(locale, state.success)}</p>}
+                {pending && <BrandedStatus message="Creating your account..." detail="Securing your account..." />}
+                {state.error && localizeAuthStateMessage(locale, state.error) && <BrandedStatus variant="error" message="Account creation paused" detail={localizeAuthStateMessage(locale, state.error)} />}
+                {state.success && <BrandedStatus variant="success" message="Account created" detail={localizeAuthStateMessage(locale, state.success)} />}
                 <div className="registration-actions"><button type="button" className="button secondary" disabled={pending} onClick={() => setRegistrationStep(2)}><ChevronLeft size={18} /> Back</button><button className="button primary" disabled={pending || unavailable} aria-busy={pending}>{pending ? "Creating account..." : content[2]} <ArrowRight size={18} /></button></div>
               </fieldset>
             </>
@@ -319,16 +321,9 @@ export function AuthPanel({
               <Link href="/forgot-password">{t.auth.forgotPassword}</Link>
             </div>
           )}
-          {mode !== "register" && state.error && localizeAuthStateMessage(locale, state.error) && (
-            <p className="auth-message error" role="alert">
-              {localizeAuthStateMessage(locale, state.error)}
-            </p>
-          )}
-          {mode !== "register" && state.success && localizeAuthStateMessage(locale, state.success) && (
-            <p className="auth-message success" role="status">
-              {localizeAuthStateMessage(locale, state.success)}
-            </p>
-          )}
+          {mode !== "register" && pending && <BrandedStatus message={mode === "login" ? "Signing you in..." : "Processing your request..."} detail={mode === "login" ? "Preparing your dashboard..." : "Almost ready..."} />}
+          {mode !== "register" && state.error && localizeAuthStateMessage(locale, state.error) && <BrandedStatus variant="error" message={mode === "login" ? "Sign-in unsuccessful" : "Request unsuccessful"} detail={localizeAuthStateMessage(locale, state.error)} />}
+          {mode !== "register" && state.success && localizeAuthStateMessage(locale, state.success) && <BrandedStatus variant="success" message="Request completed" detail={localizeAuthStateMessage(locale, state.success)} />}
           {unavailable && <p className="auth-message" role="status">{t.auth.registrationUnavailable}</p>}
           {mode !== "register" && <button className="button primary auth-submit" disabled={pending || unavailable} aria-busy={pending}>
             {pending ? mode === "login" ? "Signing in..." : "Sending recovery email..." : unavailable ? t.auth.registrationUnavailableAction : content[2]}

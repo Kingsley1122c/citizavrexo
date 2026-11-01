@@ -12,6 +12,7 @@ import {
 } from "@/lib/i18n/config";
 import { localizeAuthStateMessage, userUi } from "@/lib/i18n/user-ui";
 import { BrandLogo } from "@/components/brand-logo";
+import { BrandedStatus } from "@/components/branded-status";
 
 export function PasswordResetForm({ token }: { token: string }) {
   const [state, action, pending] = useActionState(completePasswordResetAction, {});
@@ -41,8 +42,9 @@ export function PasswordResetForm({ token }: { token: string }) {
       <span className="auth-icon"><LockKeyhole size={22}/></span><h2>{t.resetPassword.title}</h2><p>{t.resetPassword.subtitle}</p>
       <input type="hidden" name="token" value={token}/>
       <label>{t.resetPassword.newPassword}<span><LockKeyhole size={17}/><input name="password" type={showPassword ? "text" : "password"} autoComplete="new-password" placeholder={t.resetPassword.newPasswordPlaceholder} required minLength={8} maxLength={128}/><button type="button" aria-label={showPassword ? t.auth.hidePassword : t.auth.showPassword} onClick={() => setShowPassword(!showPassword)}><Eye size={17}/></button></span></label>
-      {state.error && <p className="auth-message error" role="alert">{localizeAuthStateMessage(locale, state.error)}</p>}
-      {state.success && <p className="auth-message success" role="status">{localizeAuthStateMessage(locale, state.success)}</p>}
+      {pending && <BrandedStatus message="Securing your account..." detail="Almost ready..." />}
+      {state.error && <BrandedStatus variant="error" message="Password reset unsuccessful" detail={localizeAuthStateMessage(locale, state.error)} />}
+      {state.success && <BrandedStatus variant="success" message="Password reset" detail={localizeAuthStateMessage(locale, state.success)} />}
       <button className="button primary auth-submit" type="submit" disabled={pending || Boolean(state.success)}>{pending ? t.auth.pleaseWait : state.success ? t.resetPassword.passwordReset : t.resetPassword.resetPassword}<ArrowRight size={18}/></button>
       <div className="auth-switch">{t.resetPassword.returnTo} <Link href="/login">{t.resetPassword.signIn}</Link></div>
     </form></section>

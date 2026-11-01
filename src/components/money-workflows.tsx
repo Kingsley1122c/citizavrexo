@@ -37,6 +37,7 @@ import { TransferReceiptCard } from "@/components/transfer-receipt";
 import { withdrawalSupportMessage } from "@/lib/customer-service-config";
 import { currencyFractionDigits, formatCurrencyAmount, type Currency } from "@/lib/currency";
 import { minorToMajor } from "@/lib/money";
+import { BrandedStatus } from "@/components/branded-status";
 
 const LocaleContext = createContext<Locale>("en");
 
@@ -215,6 +216,7 @@ function SendMoneyDialog({
         <WorkflowPending label="Processing transfer..." />
       ) : (verificationState.receipt || sendState.receipt) ? (
         <div className="workflow-success" role="status">
+          <BrandedStatus variant="success" message="Transfer completed" detail="Your transaction has been securely processed." />
           <TransferReceiptCard receipt={(verificationState.receipt ?? sendState.receipt)!} locale={locale} />
           <button className="button primary" type="button" onClick={close}>
             {text.done}
@@ -233,7 +235,7 @@ function SendMoneyDialog({
           {verificationState.error && <p className="auth-message error" role="alert">{localizeUserActionMessage(locale, verificationState.error)}</p>}
           <div className="modal-actions">
             <button className="button secondary" type="button" onClick={close}>{text.cancel}</button>
-            <button className="button primary">Verify and send</button>
+            <button className="button primary" disabled={verifying}>Verify and send</button>
           </div>
         </form>
       ) : pinStep && quote ? (
@@ -245,7 +247,7 @@ function SendMoneyDialog({
           {sendState.error && <p className="auth-message error" role="alert">{localizeUserActionMessage(locale, sendState.error)}</p>}
           <div className="modal-actions">
             <button className="button secondary" type="button" onClick={() => setPinStep(false)}><ArrowLeft size={16} />{text.back}</button>
-            <button className="button primary" disabled={!idempotencyKey} aria-label="Request transaction authorization">Request authorization</button>
+            <button className="button primary" disabled={sending || !idempotencyKey} aria-label="Request transaction authorization">Request authorization</button>
           </div>
         </form>
       ) : quote && recipient && sender ? (
@@ -454,9 +456,7 @@ function WithdrawalDialog({
         <WorkflowPending label="Submitting withdrawal..." />
       ) : authorizationCompleted && currentSupport && currentReference ? (
         <div className="workflow-success" role="status">
-          <Check size={30} />
-          <h3>Withdrawal authorization completed</h3>
-          <p>Your withdrawal request is now awaiting administrator review and customer-service completion.</p>
+          <BrandedStatus variant="success" message="Withdrawal authorization completed" detail="Your request is awaiting administrator review and customer-service completion." />
           <small>
             {text.reference}: {currentReference}
           </small>
@@ -512,7 +512,7 @@ function WithdrawalDialog({
             />
           </label>
           <div className="modal-actions">
-            <button className="button primary" disabled={!withdrawalCode.trim()}>
+            <button className="button primary" disabled={verifyingWithdrawalCode || !withdrawalCode.trim()}>
               Confirm Withdrawal Code
             </button>
           </div>
@@ -542,16 +542,14 @@ function WithdrawalDialog({
             />
           </label>
           <div className="modal-actions">
-            <button className="button primary" disabled={!swiftCode.trim()}>
+            <button className="button primary" disabled={verifyingSwiftCode || !swiftCode.trim()}>
               Verify SWIFT Code
             </button>
           </div>
         </form>
       ) : state.success ? (
         <div className="workflow-success" role="status">
-          <Check size={30} />
-          <h3>{text.received}</h3>
-          <p>{text.service}</p>
+          <BrandedStatus variant="success" message={text.received} detail={text.service} />
           <small>
             {text.reference}: {state.reference}
           </small>
@@ -981,6 +979,6 @@ function Modal({
 }
 
 function WorkflowPending({ label }: { label: string }) {
-  return <div className="workflow-pending" role="status" aria-live="polite" aria-busy="true"><span className="loading-mark" aria-hidden="true"/><b>{label}</b><small>Please keep this window open.</small></div>;
+  return <div className="workflow-pending"><BrandedStatus message={label} detail="Please keep this window open." /></div>;
 }
 
