@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { convertMinorAmount } from "./decimal";
+import { convertMinorAmount, divideDecimalRates } from "./decimal";
 import { OpenExchangeRatesProvider } from "./open-exchange-rates-provider";
 import { getExchangeRateProvider } from "./provider";
 
@@ -31,6 +31,22 @@ describe("Open Exchange Rates provider", () => {
     await expect(failed.getRate({ fromCurrency: "USD", toCurrency: "JPY" })).rejects.toMatchObject({ code: "unavailable" });
     expect(() => getExchangeRateProvider({})).toThrow("not currently available");
   });
+
+  it("times out fail-closed without exposing its credential in logs or errors", async () => {
+    const appId = "credential-must-remain-server-only";
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const fetcher = vi.fn((_input: URL | RequestInfo, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+    }));
+    const provider = new OpenExchangeRatesProvider({ appId, timeoutMs: 1, fetcher });
+
+    const failure = await provider.getRate({ fromCurrency: "USD", toCurrency: "EUR" }).catch((error: unknown) => error);
+
+    expect(failure).toMatchObject({ code: "unavailable" });
+    expect(JSON.stringify(consoleError.mock.calls)).not.toContain(appId);
+    expect(String(failure)).not.toContain(appId);
+    consoleError.mockRestore();
+  });
 });
 
 describe("currency-aware integer conversion", () => {
@@ -38,5 +54,11 @@ describe("currency-aware integer conversion", () => {
     expect(convertMinorAmount(100_000, "USD", "GBP", "0.79")).toBe(79_000);
     expect(convertMinorAmount(100_000, "USD", "JPY", "149.55")).toBe(149_550);
     expect(convertMinorAmount(1_000, "KWD", "USD", "3.25")).toBe(325);
+    expect(convertMinorAmount(1, "USD", "JPY", "50")).toBe(1);
+  });
+
+  it("derives directional cross-rates with stable decimal precision", () => {
+    expect(divideDecimalRates("1", "3")).toBe("0.333333333333333333");
+    expect(divideDecimalRates("3", "1")).toBe("3");
   });
 });

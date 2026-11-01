@@ -625,6 +625,19 @@ describe("Citizavrexo-to-Citizavrexo transfers", () => {
     expect(database.select().from(accounts).where(eq(accounts.id, "recipient-usd")).get()?.balanceMinor).toBe(2_000);
   });
 
+  it("rejects stale, future, and invalidly configured rate timestamps without persisting quotes", async () => {
+    const { createTransferQuote } = await import("./transactions/transfer-service");
+    const now = new Date("2026-06-12T12:00:00.000Z");
+    const providerAt = (publishedAt: string) => ({ id: "test_provider", getRate: vi.fn(async () => ({ fromCurrency: "USD" as const, toCurrency: "EUR" as const, rate: "0.925", effectiveDate: "2026-06-12", publishedAt, provider: "test_provider" })) });
+    const before = database.select().from(transferQuotes).all().length;
+    await expect(createTransferQuote({ userId: "test-user", senderAccountId: "test-account", recipientAccountNumber: "1000001002", amountMinor: 100, provider: providerAt("2026-06-12T05:59:59.000Z"), now })).rejects.toThrow("current verified exchange rate");
+    await expect(createTransferQuote({ userId: "test-user", senderAccountId: "test-account", recipientAccountNumber: "1000001002", amountMinor: 100, provider: providerAt("2026-06-12T12:05:01.000Z"), now })).rejects.toThrow("current verified exchange rate");
+    vi.stubEnv("EXCHANGE_RATE_MAX_AGE_SECONDS", "invalid");
+    await expect(createTransferQuote({ userId: "test-user", senderAccountId: "test-account", recipientAccountNumber: "1000001002", amountMinor: 100, provider: providerAt(now.toISOString()), now })).rejects.toThrow("current verified exchange rate");
+    vi.unstubAllEnvs();
+    expect(database.select().from(transferQuotes).all()).toHaveLength(before);
+  });
+
   it("atomically transfers funds and creates both histories, notifications, email records, and audit", async () => {
     const { getTransferReceiptForUser, transferBetweenUsers } = await import("./transactions/transfer-service");
     const quoteId = insertQuote({ id: "quote-success-0001", sourceAmountMinor: 3_500 });

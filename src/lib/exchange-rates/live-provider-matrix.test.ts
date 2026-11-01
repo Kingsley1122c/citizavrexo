@@ -1,6 +1,6 @@
 ﻿import { describe, expect, it } from "vitest";
 import { resolve } from "node:path";
-import { currencyFractionDigits, type Currency } from "@/lib/currency";
+import { currencyFractionDigits, SUPPORTED_CURRENCIES, type Currency } from "@/lib/currency";
 import { convertMinorAmount } from "./decimal";
 
 const pairs = [
@@ -12,6 +12,22 @@ const databasePath = process.env.DATABASE_URL?.replace(/^file:/, "");
 const configured = process.env.NODE_ENV !== "production" && !process.env.RENDER && process.env.QA_FIXTURE_MODE === "local-only" && process.env.LIVE_PROVIDER_GATE === "local-only" && databasePath !== undefined && resolve(databasePath) === resolve("data/Citizavrexo-provider-gate.db") && process.env.APP_URL === "http://localhost:3011" && process.env.EXCHANGE_RATE_PROVIDER === "open_exchange_rates" && Boolean(process.env.OPEN_EXCHANGE_RATES_APP_ID);
 
 describe.skipIf(!configured)("live Open Exchange Rates currency matrix", () => {
+  it("authenticates once and retrieves every application-supported currency", async () => {
+    const url = new URL("https://openexchangerates.org/api/latest.json");
+    url.searchParams.set("app_id", process.env.OPEN_EXCHANGE_RATES_APP_ID!);
+    url.searchParams.set("symbols", SUPPORTED_CURRENCIES.join(","));
+    const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(8_000) });
+    expect(response.ok).toBe(true);
+    const payload = await response.json() as { base?: unknown; timestamp?: unknown; rates?: Record<string, unknown> };
+    expect(payload.base).toBe("USD");
+    expect(Number.isSafeInteger(payload.timestamp)).toBe(true);
+    expect(Number.isNaN(new Date(Number(payload.timestamp) * 1_000).getTime())).toBe(false);
+    for (const currency of SUPPORTED_CURRENCIES) {
+      const rate = currency === "USD" ? 1 : payload.rates?.[currency];
+      expect(rate, `missing ${currency}`).toSatisfy((value: unknown) => typeof value === "number" && Number.isFinite(value) && value > 0);
+    }
+  });
+
   it.each(pairs)("retrieves and persists a verified %s/%s quote", async (fromCurrency, toCurrency) => {
     const { eq } = await import("drizzle-orm");
     const { db } = await import("@/lib/db/client");
