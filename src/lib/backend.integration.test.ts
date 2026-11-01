@@ -35,6 +35,7 @@ beforeAll(async () => {
   migrate(database, { migrationsFolder: resolve("drizzle") });
   const now = new Date().toISOString();
   database.insert(users).values({ id: "test-user", name: "Test User", email: "test@example.test", avatarInitials: "TU", status: "active", locale: "en", createdAt: now, updatedAt: now }).run();
+  database.insert(users).values({ id: "admin-reviewer", name: "Admin Reviewer", email: "admin@example.test", avatarInitials: "AR", status: "active", locale: "en", adminRole: "administrator", createdAt: now, updatedAt: now }).run();
   database.insert(credentials).values({ userId: "test-user", passwordHash: "integration-password-hash", passwordChangedAt: now }).run();
   database.insert(accounts).values({ id: "test-account", userId: "test-user", name: "Personal Account", number: "1000000001", type: "personal", currency: "USD", balanceMinor: 10000, status: "active", createdAt: now, updatedAt: now }).run();
   database.insert(bankDestinations).values({ id: "test-destination", userId: "test-user", label: "Primary bank", bankName: "Test Bank", accountName: "Test User", accountNumber: "0123456789", currency: "USD", createdAt: now, updatedAt: now }).run();
@@ -139,12 +140,15 @@ describe("recovery and permissions", () => {
 
   it("does not serialize audit records for roles without audit permission", async () => {
     const { getAdminWorkspace } = await import("./repositories/workspace-repository");
+    database.insert(auditEvents).values({ id: "AUD-role-visibility", actorId: "admin-reviewer", actorLabel: "admin@example.test", action: "test.audit.visibility", target: "test-user", result: "success", metadataJson: "{}", timestamp: new Date().toISOString() }).onConflictDoNothing().run();
     expect((await getAdminWorkspace("support_agent")).auditEvents).toEqual([]);
     expect((await getAdminWorkspace("super_admin")).auditEvents.length).toBeGreaterThan(0);
   });
 
   it("filters admin workspace datasets for every configured role", async () => {
     const { getAdminWorkspace } = await import("./repositories/workspace-repository");
+    const now = new Date().toISOString();
+    database.insert(transactions).values({ id: "TX-role-visibility", reference: "NVT-role-visibility", idempotencyKey: "role-visibility", accountId: "test-account", type: "credit", description: "Role visibility fixture", amountMinor: 1, currency: "USD", occurredAt: now, status: "completed", balanceBeforeMinor: 10_000, balanceAfterMinor: 10_001, createdBy: "system", createdAt: now }).onConflictDoNothing().run();
     const superAdmin = await getAdminWorkspace("super_admin");
     const administrator = await getAdminWorkspace("administrator");
     const support = await getAdminWorkspace("support_agent");
@@ -401,8 +405,6 @@ describe("physical card requests", () => {
 
   it("enforces ownership and review permission, then approves exactly once", async () => {
     const { createCardRequest, reviewCardRequest } = await import("./cards/card-request-service");
-    const now = new Date().toISOString();
-    database.insert(users).values({ id: "admin-reviewer", name: "Admin Reviewer", email: "admin@example.test", avatarInitials: "AR", status: "active", locale: "en", adminRole: "administrator", createdAt: now, updatedAt: now }).run();
     expect(() => createCardRequest({ userId: "another-user", actorLabel: "other@example.test", accountId: "test-account", label: "Other card", monthlyLimitMinor: 50_000 })).toThrow("not eligible");
     const request = database.select().from(cardRequests).where(and(eq(cardRequests.userId, "test-user"), eq(cardRequests.status, "pending"))).get();
     expect(request).toBeTruthy();
