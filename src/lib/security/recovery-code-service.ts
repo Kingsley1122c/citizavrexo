@@ -4,13 +4,9 @@ import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypt
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { auditEvents, recoveryCodes } from "@/lib/db/schema";
+import { requireRecoveryCodePepper } from "@/lib/security/runtime-secrets";
 
-const pepper = () => {
-  const value = process.env.RECOVERY_CODE_PEPPER;
-  if (!value || value.length < 32) throw new Error("RECOVERY_CODE_PEPPER must contain at least 32 characters.");
-  return value;
-};
-const digest = (code: string) => createHmac("sha256", pepper()).update(code).digest("hex");
+const digest = (code: string) => createHmac("sha256", requireRecoveryCodePepper()).update(code).digest("hex");
 
 export async function rotateRecoveryCodes(userId: string, actorLabel: string, count = 10): Promise<string[]> {
   if (!Number.isInteger(count) || count < 1 || count > 20) throw new Error("Recovery code count must be between 1 and 20.");

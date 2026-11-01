@@ -57,15 +57,11 @@ Do not deploy these identities or passwords.
 
 ## Render deployment
 
-`render.yaml` defines one Node web service because file-backed SQLite cannot safely be shared by multiple application instances. It mounts a persistent disk at `/var/data`, sets `DATABASE_URL=file:/var/data/Citizavrexo.db`, runs forward-only migrations before `next start`, and uses `/api/health` to verify database access.
+`render.yaml` defines one manually deployed Free Node web service. It stores SQLite and uploaded profile images under `/tmp/citizavrexo`, runs migrations on every fresh filesystem, provisions one configured super administrator idempotently, and uses `/api/health` to verify database access.
 
-Set `RECOVERY_CODE_PEPPER` and `RESEND_API_KEY` as secrets in Render. Set `EMAIL_FROM` to a sender on a domain that Resend has verified and set `APP_URL` to the canonical HTTPS origin. Never copy `.env.local` into the repository. After the first successful migration, provision the initial administrator once from a Render shell by setting temporary `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_NAME`, and `BOOTSTRAP_ADMIN_PASSWORD` values and running:
+Render Free local storage is temporary. Accounts, balances, transactions, audit history, email state, sessions, and uploaded images reset together after an idle spin-down, restart, or redeploy. This deployment is unsuitable for real users or real financial records, has no backup or recovery guarantee, and connects no real banking or payment rail. All financial operations are simulated.
 
-```bash
-npm run db:bootstrap-admin
-```
-
-Remove all three bootstrap variables immediately afterward. The command refuses to run once any administrator exists. Never run `npm run db:seed` in production.
+Set `RECOVERY_CODE_PEPPER`, `EPHEMERAL_ADMIN_EMAIL`, `EPHEMERAL_ADMIN_NAME`, `EPHEMERAL_ADMIN_PASSWORD`, `RESEND_API_KEY`, `EMAIL_FROM`, `APP_URL`, `CUSTOMER_SERVICE_EMAIL`, and `OPEN_EXCHANGE_RATES_APP_ID` as Render secrets. `EMAIL_FROM` must use a domain verified by Resend and `APP_URL` must be the canonical HTTPS origin. Never copy `.env.local` into the repository or run `npm run db:seed` on the hosted service. Cross-currency transfers remain unavailable unless the configured exchange-rate provider is usable.
 
 ## Client Handover
 
@@ -79,13 +75,11 @@ The application stores only the ownership-transfer verification-token hash. A co
 
 The handover delivery adapter constructs the `https://citizavrexo.com/admin-transfer?token=...` link only at send time, never writes the plaintext token to the generic email outbox, logs, or analytics, and returns success only after Resend accepts the message.
 
-The persistent disk requires a paid Render plan and must have snapshots or off-site backups configured before production financial records are accepted. Keep the service at one instance while SQLite remains the datastore.
-
-The repository includes SQLite-safe encrypted backup, verification, and restore commands. See [Production backup and restore](docs/backup-and-restore.md). Render snapshots are short-term recovery points, not independent off-site backups.
+The approved Free configuration is intentionally disposable. See [Ephemeral hosting and recovery](docs/backup-and-restore.md). A persistent datastore with tested independent backups is required before accepting production financial records.
 
 ## Production configuration still required
 
-SQLite is suitable for this single-process deployment only when the Render persistent disk and backups are active. Before a multi-instance launch, migrate the Drizzle schema to an approved managed database with encryption, retention policies, and tested restore procedures.
+SQLite is suitable here only for the single-process, temporary-storage configuration. Before serving real users or launching multiple instances, migrate the Drizzle schema to an approved managed database with encryption, retention policies, and tested restore procedures.
 
 The Resend transport and durable outbox worker run inside the single web process that owns the Render SQLite disk. The worker claims at most ten due messages per minute, retries failures at bounded intervals for at most five attempts, recovers stale claims, and uses stable provider idempotency keys to suppress duplicates. A persisted 90-message rolling daily budget keeps automated outbox delivery below Resend Free's 100-message daily limit. Self-registration remains blocked in production unless `RESEND_API_KEY`, `EMAIL_FROM`, and `APP_URL` are configured. Phone verification and new-device verification remain outside the current product scope. Real banking rails, payment networks, card issuing, identity verification, SMS, and biometric platform integrations are intentionally not connected.
 
@@ -107,6 +101,7 @@ npm run lint
 npm test
 npm run build
 npm start
+npm run start:free
 ```
 
 The default database is `./data/Citizavrexo.db`; set `DATABASE_URL=file:...` to use another SQLite file. Database files and local environment files are ignored.

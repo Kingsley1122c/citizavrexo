@@ -2,28 +2,36 @@
   - type: web
     name: citizavrexo
     runtime: node
-    plan: starter
+    plan: free
     region: oregon
     numInstances: 1
-    buildCommand: npm ci && DATABASE_URL=file:./data/build.db npm run build
-    startCommand: npm run start:production
+    buildCommand: npm ci && STORAGE_MODE=persistent DATABASE_URL=file:./data/build.db PROFILE_IMAGE_DIR=./data/profile-images npm run build
+    startCommand: npm run start:free
     healthCheckPath: /api/health
-    autoDeployTrigger: commit
+    autoDeployTrigger: off
     envVars:
       - key: NODE_VERSION
         value: 22.22.0
+      - key: STORAGE_MODE
+        value: ephemeral
       - key: DATABASE_URL
-        value: file:/var/data/Citizavrexo.db
+        value: file:/tmp/citizavrexo/Citizavrexo.db
+      - key: PROFILE_IMAGE_DIR
+        value: /tmp/citizavrexo/profile-images
       - key: RECOVERY_CODE_PEPPER
+        sync: false
+      - key: EPHEMERAL_ADMIN_EMAIL
+        sync: false
+      - key: EPHEMERAL_ADMIN_NAME
+        sync: false
+      - key: EPHEMERAL_ADMIN_PASSWORD
         sync: false
       - key: RESEND_API_KEY
         sync: false
       - key: EMAIL_FROM
-        value: CITIZAVREXO <no-reply@citizavrexo.com>
+        sync: false
       - key: APP_URL
-        value: https://citizavrexo.com
-      - key: PROFILE_IMAGE_DIR
-        value: /var/data/profile-images
+        sync: false
       - key: CUSTOMER_SERVICE_EMAIL
         sync: false
       - key: EXCHANGE_RATE_PROVIDER
@@ -34,7 +42,3 @@
         value: 8000
       - key: EXCHANGE_RATE_MAX_AGE_SECONDS
         value: 21600
-    disk:
-      name: Citizavrexo-data
-      mountPath: /var/data
-      sizeGB: 1

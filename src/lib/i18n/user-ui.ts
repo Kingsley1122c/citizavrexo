@@ -62,12 +62,14 @@ export function localizeAuthStateMessage(locale: Locale, message?: string): stri
     "Use a valid name, email, and a password of at least 12 characters.": t.auth.registerSubtitle,
     "Registration cannot currently be completed because email verification delivery is unavailable. No account was created.": t.auth.registrationUnavailable,
     "We couldn't create that account. Please try again.": t.messages.genericAuthError,
+    "We couldn't confirm verification delivery. If your account is pending, request a new verification link.": t.messages.genericAuthError,
     "Verification email accepted for delivery. Check your inbox to continue.": t.auth.resetSubtitle,
+    "Email delivery is unavailable. No recovery email was sent.": t.auth.recoveryOptionsUnavailable,
     "This reset link is invalid or the password is too short.": t.auth.resetSubtitle,
     "This reset link is invalid or expired.": t.auth.resetSubtitle,
     "Your password has been reset. You can now sign in.": t.resetPassword.passwordReset,
     "Enter a valid email address.": t.auth.emailAddress,
-    "If an account matches that email, recovery instructions have been queued.": t.auth.resetSubtitle,
+    "If an account matches that email, recovery instructions will be sent.": t.auth.resetSubtitle,
   };
   return map[message] ?? t.messages.genericAuthError;
 }

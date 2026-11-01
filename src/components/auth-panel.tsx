@@ -226,6 +226,7 @@ export function AuthPanel({
               </>
             )}
           </div>
+          {mode === "register" && <div className="auth-switch"><Link href="/verify-email">Resend verification email</Link></div>}
           {mode === "reset" && (
             <div className="recovery-options">
               <b>{t.auth.recoveryOptionsUnavailable}</b>

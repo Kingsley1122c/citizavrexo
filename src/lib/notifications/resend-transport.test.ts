@@ -9,7 +9,7 @@ vi.mock("resend", () => ({
 }));
 vi.mock("@/lib/auth/rate-limit-service", () => ({ consumeAuthRateLimit }));
 
-import { DailyEmailLimitError, resendEmailTransport } from "./resend-transport";
+import { DailyEmailLimitError, isTransactionalEmailConfigured, resendEmailTransport } from "./resend-transport";
 
 const message = {
   to: "recipient@example.test",
@@ -22,12 +22,20 @@ describe("Resend email transport", () => {
   beforeEach(() => {
     vi.stubEnv("RESEND_API_KEY", "test-resend-key");
     vi.stubEnv("EMAIL_FROM", "CITIZAVREXO <no-reply@citizavrexo.com>");
+    vi.stubEnv("APP_URL", "https://citizavrexo.com");
+    vi.stubEnv("RECOVERY_CODE_PEPPER", "test-only-recovery-pepper-at-least-32-characters");
     send.mockReset();
     consumeAuthRateLimit.mockReset();
     consumeAuthRateLimit.mockReturnValue(true);
   });
 
   afterEach(() => vi.unstubAllEnvs());
+
+  it("requires action-token signing before reporting email readiness", () => {
+    expect(isTransactionalEmailConfigured()).toBe(true);
+    vi.stubEnv("RECOVERY_CODE_PEPPER", "too-short");
+    expect(isTransactionalEmailConfigured()).toBe(false);
+  });
 
   it("uses the configured sender and provider idempotency key", async () => {
     send.mockResolvedValueOnce({ data: { id: "provider-message-id" }, error: null });

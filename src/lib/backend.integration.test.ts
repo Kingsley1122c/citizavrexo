@@ -302,22 +302,18 @@ describe("authentication abuse controls", () => {
     expect(consumeAuthRateLimit("withdrawal_authorization", identifier, now + 16 * 60 * 1000)).toBe(true);
   });
 
-  it("allows immediate verified registration in production without email delivery configuration", async () => {
+  it("rejects production registration without email delivery configuration", async () => {
     const { registerUser } = await import("./auth/auth-service");
-    const countsBefore = [users, credentials, accounts, authenticationTokens, emailOutbox, auditEvents, sessions].map((table) => database.select().from(table).all().length);
+    const tables = [users, credentials, accounts, authenticationTokens, emailOutbox, auditEvents, sessions, devices] as const;
+    const countsBefore = tables.map((table) => database.select().from(table).all().length);
     vi.stubEnv("NODE_ENV", "production");
     await expect(registerUser(
       { name: "Production Test", email: "production-registration@example.test", password: "TestPassword!2026", pin: "2468", locale: "en", currency: "USD" },
       { ipAddress: "203.0.113.12", userAgent: "Production Registration Browser" },
-    )).resolves.toBeUndefined();
+    )).rejects.toThrow("Transactional email delivery is unavailable.");
 
-    const user = database.select().from(users).where(eq(users.email, "production-registration@example.test")).get();
-    const session = database.select().from(sessions).where(eq(sessions.userId, user!.id)).get();
-    expect(user).toMatchObject({ status: "active", displayCurrency: "USD" });
-    expect(user?.emailVerifiedAt).toBeTruthy();
-    expect(database.select().from(authenticationTokens).where(eq(authenticationTokens.userId, user!.id)).all()).toHaveLength(0);
-    expect(database.select().from(devices).where(eq(devices.sessionId, session!.id)).get()).toMatchObject({ userId: user!.id });
-    expect([users, credentials, accounts, authenticationTokens, emailOutbox, auditEvents, sessions].map((table) => database.select().from(table).all().length - countsBefore.shift()!)).toEqual([1, 1, 1, 0, 1, 1, 1]);
+    expect(database.select().from(users).where(eq(users.email, "production-registration@example.test")).get()).toBeUndefined();
+    expect(tables.map((table, index) => database.select().from(table).all().length - countsBefore[index])).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
   });
 });
 

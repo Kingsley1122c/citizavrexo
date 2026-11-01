@@ -1,14 +1,14 @@
 ﻿import "server-only";
 
 import { randomBytes, randomUUID } from "node:crypto";
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db/client";
 import { accounts, auditEvents, authenticationTokens, credentials, emailOutbox, recoveryRequests, sessions, users } from "@/lib/db/schema";
 import { generateAccountNumber } from "@/lib/accounts/account-number";
 import type { EmailTransport } from "@/lib/notifications/email-service";
 import { deliverQueuedEmail } from "@/lib/notifications/outbox-service";
-import { resendEmailTransport } from "@/lib/notifications/resend-transport";
+import { requireTransactionalEmailConfiguration, resendEmailTransport } from "@/lib/notifications/resend-transport";
 import { persistUserEvent } from "@/lib/notifications/user-event-service";
 import type { Locale } from "@/lib/i18n/config";
 import type { Currency } from "@/lib/currency";
@@ -24,25 +24,63 @@ const verifyPassword = async (passwordHash: string, password: string) => (await 
 const passwordSchema = z.string().min(12).max(128);
 const safeName = z.string().trim().min(2).max(100).regex(/^[^\p{Cc}\p{Cf}]+$/u);
 type SessionRequest = { ipAddress?: string; userAgent?: string };
+export class VerificationEmailDeliveryError extends Error {}
 
-export async function registerUser(input: { name: string; email: string; password: string; pin: string; locale: Locale; currency: Currency }, request?: SessionRequest): Promise<void> {
+export async function registerUser(input: { name: string; email: string; password: string; pin: string; locale: Locale; currency: Currency }, _request?: SessionRequest, transport?: EmailTransport): Promise<void> {
+  if (!transport) requireTransactionalEmailConfiguration();
+  const deliveryTransport = transport ?? resendEmailTransport;
   const name = safeName.parse(input.name);
   const email = input.email.trim().toLowerCase();
-  const t = userUi(input.locale);
   const existing = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
   if (existing.length) throw new Error("Unable to create account.");
   const userId = randomUUID(); const now = new Date().toISOString();
+  const tokenId = randomUUID();
+  const outboxId = randomUUID();
+  const verificationToken = deriveActionToken(tokenId, "email_verification");
   const passwordHash = await hashPassword(input.password);
   const transactionPinHash = await hashTransactionPin(input.pin);
   db.transaction((tx) => {
     const accountNumber = generateAccountNumber((number) => Boolean(tx.select({ id: accounts.id }).from(accounts).where(eq(accounts.number, number)).get()));
-    tx.insert(users).values({ id: userId, name, email, avatarInitials: initials(name), status: "active", emailVerifiedAt: now, locale: input.locale, displayCurrency: input.currency, createdAt: now, updatedAt: now }).run();
+    tx.insert(users).values({ id: userId, name, email, avatarInitials: initials(name), status: "pending", locale: input.locale, displayCurrency: input.currency, createdAt: now, updatedAt: now }).run();
     tx.insert(credentials).values({ userId, passwordHash, transactionPinHash, passwordChangedAt: now }).run();
     tx.insert(accounts).values({ id: randomUUID(), userId, name: "Personal Account", number: accountNumber, type: "personal", currency: input.currency, balanceMinor: 0, status: "active", createdAt: now, updatedAt: now }).run();
-    persistUserEvent(tx, { userId, email, displayName: name, locale: input.locale, kind: "system", title: "Welcome to CITIZAVREXO", message: "Your account is ready. Review your profile and security settings to finish setup.", emailEvent: "welcome", eventKey: `WELCOME-${userId}`, publicReference: `WELCOME-${userId}`, emailSummary: t.notifications.messageWelcomeReady, important: true, createdAt: now });
-    tx.insert(auditEvents).values({ id: `AUD-${randomUUID()}`, actorId: userId, actorLabel: email, action: "user.register", target: userId, result: "success", metadataJson: JSON.stringify({ accountCurrency: input.currency, emailVerified: true, transactionPinConfigured: true }), timestamp: now }).run();
+    tx.insert(authenticationTokens).values({ id: tokenId, userId, purpose: "email_verification", tokenHash: hashActionToken(verificationToken), expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(), createdAt: now }).run();
+    tx.insert(emailOutbox).values({ id: outboxId, recipient: email, event: "welcome", eventReference: `VERIFY-${tokenId}`, payloadJson: JSON.stringify({ to: email, locale: input.locale, event: "welcome", eventReference: tokenId, displayName: name, summary: "Verify your email address to activate your Citizavrexo account.", action: { kind: "verify_email", tokenId } }), status: "pending", createdAt: now }).run();
+    tx.insert(auditEvents).values({ id: `AUD-${randomUUID()}`, actorId: userId, actorLabel: email, action: "user.register", target: userId, result: "success", metadataJson: JSON.stringify({ accountCurrency: input.currency, emailVerified: false, transactionPinConfigured: true }), timestamp: now }).run();
   }, { behavior: "immediate" });
-  await createSession(userId, false, request);
+  try {
+    await deliverQueuedEmail(outboxId, deliveryTransport);
+  } catch {
+    throw new VerificationEmailDeliveryError("Verification email delivery failed. The account remains pending.");
+  }
+}
+
+export async function requestEmailVerification(emailInput: string, transport?: EmailTransport, now = new Date()): Promise<void> {
+  if (!transport) requireTransactionalEmailConfiguration();
+  const startedAt = Date.now();
+  const email = emailInput.trim().toLowerCase();
+  const user = db.select().from(users).where(and(eq(users.email, email), eq(users.status, "pending"), isNull(users.emailVerifiedAt))).get();
+  let outboxId: string | undefined;
+  if (user) {
+    const timestamp = now.toISOString();
+    const tokenId = randomUUID();
+    outboxId = randomUUID();
+    const verificationToken = deriveActionToken(tokenId, "email_verification");
+    db.transaction((tx) => {
+      const oldTokens = tx.select({ id: authenticationTokens.id }).from(authenticationTokens).where(and(eq(authenticationTokens.userId, user.id), eq(authenticationTokens.purpose, "email_verification"), isNull(authenticationTokens.usedAt))).all();
+      if (oldTokens.length) {
+        tx.update(authenticationTokens).set({ usedAt: timestamp }).where(inArray(authenticationTokens.id, oldTokens.map((token) => token.id))).run();
+        tx.delete(emailOutbox).where(and(inArray(emailOutbox.eventReference, oldTokens.map((token) => `VERIFY-${token.id}`)), ne(emailOutbox.status, "sent"))).run();
+      }
+      tx.insert(authenticationTokens).values({ id: tokenId, userId: user.id, purpose: "email_verification", tokenHash: hashActionToken(verificationToken), expiresAt: new Date(now.getTime() + 30 * 60 * 1000).toISOString(), createdAt: timestamp }).run();
+      tx.insert(emailOutbox).values({ id: outboxId!, recipient: user.email, event: "welcome", eventReference: `VERIFY-${tokenId}`, payloadJson: JSON.stringify({ to: user.email, locale: user.locale, event: "welcome", eventReference: tokenId, displayName: user.name, summary: "Verify your email address to activate your Citizavrexo account.", action: { kind: "verify_email", tokenId } }), status: "pending", createdAt: timestamp }).run();
+      tx.insert(auditEvents).values({ id: `AUD-${randomUUID()}`, actorId: user.id, actorLabel: user.email, action: "email.verify.resend", target: user.id, result: "success", metadataJson: "{}", timestamp }).run();
+    }, { behavior: "immediate" });
+    if (transport) await deliverQueuedEmail(outboxId, transport).catch(() => undefined);
+  }
+  const minimumMs = 250 + randomBytes(1)[0] % 101;
+  const remainingMs = minimumMs - (Date.now() - startedAt);
+  if (remainingMs > 0) await new Promise((resolve) => setTimeout(resolve, remainingMs));
 }
 
 export function verifyRegisteredEmail(verificationToken: string, now = new Date()): void {
@@ -75,7 +113,9 @@ export async function loginUser(input: { email: string; password: string; persis
   await db.insert(auditEvents).values({ id: `AUD-${randomUUID()}`, actorId: row.user.id, actorLabel: row.user.email, action: "login", target: row.user.id, result: "success", metadataJson: "{}", timestamp: new Date().toISOString() });
 }
 
-export async function requestPasswordReset(emailInput: string, transport: EmailTransport = resendEmailTransport): Promise<void> {
+export async function requestPasswordReset(emailInput: string, transport?: EmailTransport): Promise<void> {
+  if (!transport) requireTransactionalEmailConfiguration();
+  const deliveryTransport = transport ?? resendEmailTransport;
   const startedAt = Date.now();
   const email = emailInput.trim().toLowerCase();
   const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
@@ -95,7 +135,7 @@ export async function requestPasswordReset(emailInput: string, transport: EmailT
         tx.insert(auditEvents).values({ id: `AUD-${randomUUID()}`, actorId: user.id, actorLabel: user.email, action: "recovery.request", target: reference, result: "success", metadataJson: JSON.stringify({ method: "email" }), timestamp: now }).run();
       });
     }
-    if (outboxId) await deliverQueuedEmail(outboxId, transport).catch(() => undefined);
+    if (outboxId) await deliverQueuedEmail(outboxId, deliveryTransport).catch(() => undefined);
   }
   const minimumMs = 250 + randomBytes(1)[0] % 101;
   const remainingMs = minimumMs - (Date.now() - startedAt);

@@ -7,6 +7,7 @@ import { resolve } from "node:path";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { auditEvents, users } from "@/lib/db/schema";
+import { resolveStorageConfiguration } from "@/lib/storage-policy";
 
 const maximumBytes = 2 * 1024 * 1024;
 const keyPattern = /^[0-9a-f-]{36}\.(?:jpg|png|webp)$/;
@@ -21,7 +22,7 @@ function imageType(bytes: Uint8Array): { extension: "jpg" | "png" | "webp"; cont
 }
 
 function storageDirectory() {
-  return resolve(/* turbopackIgnore: true */ process.env.PROFILE_IMAGE_DIR ?? "./data/profile-images");
+  return resolve(/* turbopackIgnore: true */ resolveStorageConfiguration().profileImageDirectory);
 }
 
 export async function saveProfileImage(input: { userId: string; actorLabel: string; file: File }): Promise<void> {

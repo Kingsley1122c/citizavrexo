@@ -4,9 +4,10 @@ import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { resolveStorageConfiguration } from "@/lib/storage-policy";
 import * as schema from "./schema";
 
-const databasePath = process.env.DATABASE_URL?.replace(/^file:/, "") ?? "./data/Citizavrexo.db";
+const databasePath = resolveStorageConfiguration().databaseUrl.slice("file:".length);
 const globalDatabase = globalThis as typeof globalThis & { CitizavrexoDatabase?: Database.Database };
 mkdirSync(dirname(databasePath), { recursive: true });
 const sqlite = globalDatabase.CitizavrexoDatabase ?? new Database(databasePath);
