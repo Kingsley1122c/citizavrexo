@@ -12,8 +12,37 @@ describe("Open Exchange Rates provider", () => {
     const rate = await provider.getRate({ fromCurrency: "INR", toCurrency: "SGD" });
     expect(rate).toMatchObject({ fromCurrency: "INR", toCurrency: "SGD", effectiveDate: "2025-09-15", publishedAt: "2025-09-15T00:00:00.000Z", provider: "open_exchange_rates" });
     expect(Number(rate.rate)).toBeCloseTo(1.332 / 83.25, 15);
-    expect(String(fetcher.mock.calls[0][0])).toContain("symbols=INR%2CSGD%2CUSD");
+    expect(String(fetcher.mock.calls[0][0])).not.toContain("symbols=");
     expect(String(fetcher.mock.calls[0][0])).not.toContain("test-app-id".replace("test", "missing"));
+  });
+
+  it("reuses one complete latest snapshot for an hour and refreshes after expiry", async () => {
+    let now = 1_800_000_000_000;
+    const fetcher = vi.fn().mockImplementation(async () => response({ base: "USD", timestamp: 1_800_000_000, rates: { USD: 1, EUR: 0.9, GBP: 0.8, JPY: 150 } }));
+    const provider = new OpenExchangeRatesProvider({ appId: "test-app-id", fetcher, now: () => now });
+
+    const [eurToGbp, jpyToEur] = await Promise.all([
+      provider.getRate({ fromCurrency: "EUR", toCurrency: "GBP" }),
+      provider.getRate({ fromCurrency: "JPY", toCurrency: "EUR" }),
+    ]);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(eurToGbp.rate).toBe("0.888888888888888889");
+    expect(jpyToEur.rate).toBe("0.006");
+
+    now += 60 * 60_000;
+    await provider.getRate({ fromCurrency: "USD", toCurrency: "GBP" });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not cache an invalid latest response", async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(response({ base: "EUR", timestamp: 1_800_000_000, rates: { GBP: 0.8 } }))
+      .mockResolvedValueOnce(response({ base: "USD", timestamp: 1_800_000_000, rates: { GBP: 0.8 } }));
+    const provider = new OpenExchangeRatesProvider({ appId: "test-app-id", fetcher });
+
+    await expect(provider.getRate({ fromCurrency: "USD", toCurrency: "GBP" })).rejects.toMatchObject({ code: "invalid_response" });
+    await expect(provider.getRate({ fromCurrency: "USD", toCurrency: "GBP" })).resolves.toMatchObject({ rate: "0.8" });
+    expect(fetcher).toHaveBeenCalledTimes(2);
   });
 
   it("uses the historical endpoint and preserves the requested UTC date", async () => {

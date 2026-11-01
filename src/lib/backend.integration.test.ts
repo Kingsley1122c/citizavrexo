@@ -620,6 +620,7 @@ describe("Citizavrexo-to-Citizavrexo transfers", () => {
     };
     const quote = await createTransferQuote({ userId: "test-user", senderAccountId: "test-account", recipientAccountNumber: "1000001002", amountMinor: 3_500, provider, now: new Date("2026-06-12T12:00:00.000Z") });
     expect(quote).toMatchObject({ sourceAmount: 35, sourceCurrency: "USD", recipientAmount: 32.38, recipientCurrency: "EUR", exchangeRate: "0.925", rateProvider: "test_provider", maskedAccountNumber: "•••• 1002" });
+    expect(quote.expiresAt).toBe("2026-06-12T12:05:00.000Z");
     expect(database.select().from(transferQuotes).where(eq(transferQuotes.id, quote.id)).get()).toMatchObject({ sourceAmountMinor: 3_500, recipientAmountMinor: 3_238, exchangeRate: "0.925", consumedAt: null });
     expect(database.select().from(accounts).where(eq(accounts.id, "test-account")).get()?.balanceMinor).toBe(20_000);
     expect(database.select().from(accounts).where(eq(accounts.id, "recipient-usd")).get()?.balanceMinor).toBe(2_000);
