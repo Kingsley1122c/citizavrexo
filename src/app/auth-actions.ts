@@ -24,10 +24,11 @@ export async function loginAction(_: AuthState, formData: FormData): Promise<Aut
 }
 
 export async function registerAction(_: AuthState, formData: FormData): Promise<AuthState> {
-  const parsed = z.object({ name: z.string().trim().min(2).max(100).regex(/^[^\p{Cc}\p{Cf}]+$/u), email, password, locale: z.enum(SUPPORTED_LOCALES), currency: z.enum(SUPPORTED_CURRENCIES) }).safeParse({ name: formData.get("name"), email: formData.get("email"), password: formData.get("password"), locale: formData.get("locale"), currency: formData.get("currency") });
-  if (!parsed.success) return { error: "Use a valid name, email, and a password of at least 12 characters." };
+  const parsed = z.object({ name: z.string().trim().min(2).max(100).regex(/^[^\p{Cc}\p{Cf}]+$/u), email, password, pin: z.string().regex(/^\d{4}$/), confirmation: z.string().regex(/^\d{4}$/), locale: z.enum(SUPPORTED_LOCALES), currency: z.enum(SUPPORTED_CURRENCIES) }).safeParse({ name: formData.get("name"), email: formData.get("email"), password: formData.get("password"), pin: formData.get("pin"), confirmation: formData.get("confirmation"), locale: formData.get("locale"), currency: formData.get("currency") });
+  if (!parsed.success) return { error: "Use a valid name, email, password, and exactly 4-digit transaction PIN." };
+  if (parsed.data.pin !== parsed.data.confirmation) return { error: "Transaction PINs do not match." };
   if (!consumeAuthRateLimit("register", parsed.data.email)) return { error: "Too many attempts. Please try again later." };
-  try { await registerUser(parsed.data, await requestMetadata()); } catch { return { error: "We couldn't create that account. Please try again." }; }
+  try { await registerUser({ name: parsed.data.name, email: parsed.data.email, password: parsed.data.password, pin: parsed.data.pin, locale: parsed.data.locale, currency: parsed.data.currency }, await requestMetadata()); } catch { return { error: "We couldn't create that account. Please try again." }; }
   redirect("/app");
 }
 

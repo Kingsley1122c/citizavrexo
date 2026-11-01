@@ -231,6 +231,9 @@ export const withdrawalRequests = sqliteTable("withdrawal_requests", {
   amountMinor: integer("amount_minor").notNull(),
   currency: text("currency", { enum: SUPPORTED_CURRENCIES }).notNull(),
   status: text("status", { enum: ["pending", "completed", "rejected", "cancelled"] }).notNull(),
+  authorizationStage: text("authorization_stage", { enum: ["awaiting_withdrawal_code", "awaiting_swift_code", "authorized"] }).notNull().default("awaiting_withdrawal_code"),
+  pinVerifiedAt: text("pin_verified_at"),
+  authorizationCompletedAt: text("authorization_completed_at"),
   submittedAt: text("submitted_at").notNull(),
   reviewedBy: text("reviewed_by").references(() => users.id, { onDelete: "restrict" }),
   reviewedAt: text("reviewed_at"),
@@ -240,6 +243,41 @@ export const withdrawalRequests = sqliteTable("withdrawal_requests", {
   uniqueIndex("withdrawal_requests_reference_unique").on(table.reference),
   uniqueIndex("withdrawal_requests_idempotency_key_unique").on(table.idempotencyKey),
   uniqueIndex("withdrawal_requests_pending_account_unique").on(table.accountId).where(sql`${table.status} = 'pending'`),
+]);
+
+export const withdrawalAuthorizationCodes = sqliteTable("withdrawal_authorization_codes", {
+  id: text("id").primaryKey(),
+  withdrawalRequestId: text("withdrawal_request_id").notNull().references(() => withdrawalRequests.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  stage: text("stage", { enum: ["withdrawal_code", "swift_code"] }).notNull(),
+  codeHash: text("code_hash").notNull(),
+  status: text("status", { enum: ["issued", "verified", "revoked", "expired"] }).notNull().default("issued"),
+  issuedBy: text("issued_by").notNull().references(() => users.id, { onDelete: "restrict" }),
+  issuedAt: text("issued_at").notNull(),
+  expiresAt: text("expires_at").notNull(),
+  verifiedAt: text("verified_at"),
+  revokedAt: text("revoked_at"),
+  revokedBy: text("revoked_by").references(() => users.id, { onDelete: "restrict" }),
+  failedAttempts: integer("failed_attempts").notNull().default(0),
+  lockedUntil: text("locked_until"),
+  lastFailedAt: text("last_failed_at"),
+  replacedByCodeId: text("replaced_by_code_id"),
+}, (table) => [
+  uniqueIndex("withdrawal_authorization_codes_hash_unique").on(table.codeHash),
+  uniqueIndex("withdrawal_authorization_codes_stage_active_unique").on(table.withdrawalRequestId, table.stage).where(sql`${table.status} = 'issued'`),
+]);
+
+export const withdrawalAuthorizationAttempts = sqliteTable("withdrawal_authorization_attempts", {
+  id: text("id").primaryKey(),
+  withdrawalRequestId: text("withdrawal_request_id").notNull().references(() => withdrawalRequests.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  stage: text("stage", { enum: ["withdrawal_code", "swift_code"] }).notNull(),
+  codeId: text("code_id").references(() => withdrawalAuthorizationCodes.id, { onDelete: "set null" }),
+  outcome: text("outcome", { enum: ["success", "failure", "blocked", "expired", "revoked"] }).notNull(),
+  reason: text("reason").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  uniqueIndex("withdrawal_authorization_attempts_code_stage_timestamp_unique").on(table.withdrawalRequestId, table.stage, table.createdAt, table.id),
 ]);
 
 export const cards = sqliteTable("cards", {

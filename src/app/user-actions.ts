@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth/authorization";
 import { revokeAllSessions } from "@/lib/auth/session-service";
 import { db } from "@/lib/db/client";
-import { accounts, auditEvents, notifications, users } from "@/lib/db/schema";
+import { accounts, auditEvents, notifications, users, withdrawalRequests } from "@/lib/db/schema";
 import { rotateRecoveryCodes } from "@/lib/security/recovery-code-service";
 import { revokeOwnedDevice } from "@/lib/security/device-service";
 import { toggleOwnedCardCapability, toggleOwnedCardFreeze, type CardCapability, type MutableCardStatus } from "@/lib/security/card-service";
@@ -16,7 +16,7 @@ import { SUPPORTED_CURRENCIES, type Currency } from "@/lib/currency";
 import { parseMajorAmountToMinor } from "@/lib/money";
 import { createTransferQuote, findCompletedTransferRetry, findTransferRecipient, getTransferReceiptForUser, TransferError, transferBetweenUsers, type TransferQuote } from "@/lib/transactions/transfer-service";
 import type { BankDestination, TransferReceipt, UserProfile } from "@/lib/domain";
-import { cancelOwnedWithdrawalRequest, createWithdrawalRequest, getWithdrawalSupportDetailsForUser, type WithdrawalSupportDetails, WithdrawalError } from "@/lib/withdrawals/withdrawal-service";
+import { cancelOwnedWithdrawalRequest, getWithdrawalSupportDetailsForUser, type WithdrawalSupportDetails, WithdrawalError } from "@/lib/withdrawals/withdrawal-service";
 import { BankDestinationError, createBankDestination, deleteOwnedBankDestination } from "@/lib/withdrawals/bank-destination-service";
 import { ProfileImageError, saveProfileImage } from "@/lib/users/profile-image-service";
 import { ProfileError, saveUserProfile, type ProfileFieldErrors, type ProfileFieldName } from "@/lib/users/profile-service";
@@ -24,12 +24,22 @@ import { z } from "zod";
 import { SUPPORTED_LOCALES } from "@/lib/i18n/config";
 import { CurrencyChangeError, requestCurrencyChange } from "@/lib/accounts/currency-change-service";
 import { authorizeTransferWithPin, changeTransactionPin, setUpTransactionPin, TransactionPinError } from "@/lib/security/transaction-pin-service";
+import { requestWithdrawalWithPin, verifyWithdrawalAuthorizationCode } from "@/lib/withdrawals/withdrawal-service";
 
 export type RecoveryCodeActionState = { codes: string[]; error: string | null };
 export type CardRequestActionState = { error?: string; success?: string };
 export type RecipientLookupState = { error?: string; recipient?: { accountNumber: string; maskedAccountNumber: string; accountName: string; userName: string; currency: Currency } };
 export type TransferQuoteActionState = { error?: string; quote?: TransferQuote };
-export type MoneyActionState = { error?: string; success?: string; reference?: string; receipt?: TransferReceipt; withdrawalSupport?: WithdrawalSupportDetails };
+export type MoneyActionState = {
+  error?: string;
+  success?: string;
+  reference?: string;
+  receipt?: TransferReceipt;
+  withdrawalSupport?: WithdrawalSupportDetails;
+  withdrawalRequestId?: string;
+  authorizationStage?: "awaiting_withdrawal_code" | "awaiting_swift_code" | "authorized";
+  authorizationCompleted?: boolean;
+};
 export type BankDestinationActionState = { error?: string; success?: string; destination?: BankDestination };
 export type ProfileImageActionState = { error?: string; success?: string };
 type ProfileFormValues = Record<ProfileFieldName, string>;
@@ -215,20 +225,71 @@ export async function sendMoneyAction(_: MoneyActionState, formData: FormData): 
 
 export async function requestWithdrawalAction(_: MoneyActionState, formData: FormData): Promise<MoneyActionState> {
   const user = await requireUser();
-  const parsed = z.object({ accountId: opaqueId, destinationId: opaqueId, currency: z.enum(SUPPORTED_CURRENCIES), idempotencyKey: opaqueId }).safeParse({ accountId: formData.get("accountId"), destinationId: formData.get("destinationId"), currency: formData.get("currency"), idempotencyKey: formData.get("idempotencyKey") });
+  const parsed = z.object({ accountId: opaqueId, destinationId: opaqueId, currency: z.enum(SUPPORTED_CURRENCIES), idempotencyKey: opaqueId, pin: z.string().regex(/^\d{4}$/) }).safeParse({ accountId: formData.get("accountId"), destinationId: formData.get("destinationId"), currency: formData.get("currency"), idempotencyKey: formData.get("idempotencyKey"), pin: formData.get("pin") });
   const amountMinor = parsed.success ? parseMajorAmountToMinor(formData.get("amount"), parsed.data.currency) : null;
   if (!parsed.success || amountMinor === null) {
     logCustomerActionFailure("withdrawal_submit", "input_validation");
     return { error: "Check the withdrawal details and enter a valid amount." };
   }
   try {
-    const reference = createWithdrawalRequest({ userId: user.id, actorLabel: user.email, amountMinor, ...parsed.data });
+    const reference = await requestWithdrawalWithPin({ userId: user.id, actorLabel: user.email, amountMinor, ...parsed.data });
+    const request = db.select().from(withdrawalRequests).where(and(eq(withdrawalRequests.reference, reference), eq(withdrawalRequests.userId, user.id))).get();
+    if (!request) return { error: "The withdrawal request could not be submitted." };
     revalidatePath("/app");
     revalidatePath("/admin");
-    return { success: "Withdrawal Request Received", reference, withdrawalSupport: getWithdrawalSupportDetailsForUser(reference, user.id) };
+    return {
+      success: "Withdrawal Request Received",
+      reference,
+      withdrawalRequestId: request.id,
+      authorizationStage: request.authorizationStage,
+      authorizationCompleted: request.authorizationStage === "authorized",
+      withdrawalSupport: getWithdrawalSupportDetailsForUser(reference, user.id),
+    };
   } catch (error) {
     logCustomerActionFailure("withdrawal_submit", withdrawalFailureCategory(error), error);
-    return { error: error instanceof WithdrawalError ? error.message : "The withdrawal request could not be submitted." };
+    return { error: error instanceof WithdrawalError || error instanceof TransactionPinError ? error.message : "The withdrawal request could not be submitted." };
+  }
+}
+
+export async function verifyWithdrawalCodeAction(_: MoneyActionState, formData: FormData): Promise<MoneyActionState> {
+  const user = await requireUser();
+  const parsed = z.object({ requestId: opaqueId, code: z.string().trim().min(8).max(32) }).safeParse({ requestId: formData.get("requestId"), code: formData.get("code") });
+  if (!parsed.success) return { error: "Enter a valid authorization code." };
+  try {
+    const result = await verifyWithdrawalAuthorizationCode({ userId: user.id, actorLabel: user.email, requestId: parsed.data.requestId, stage: "withdrawal_code", code: parsed.data.code });
+    revalidatePath("/app");
+    revalidatePath("/admin");
+    return {
+      success: "Withdrawal code verified.",
+      reference: result.requestReference,
+      withdrawalRequestId: parsed.data.requestId,
+      authorizationStage: result.nextStage,
+      authorizationCompleted: result.authorizationCompleted,
+      withdrawalSupport: getWithdrawalSupportDetailsForUser(result.requestReference, user.id),
+    };
+  } catch (error) {
+    return { error: error instanceof WithdrawalError ? error.message : "The authorization code could not be verified.", withdrawalRequestId: parsed.data.requestId, authorizationStage: "awaiting_withdrawal_code" };
+  }
+}
+
+export async function verifyWithdrawalSwiftCodeAction(_: MoneyActionState, formData: FormData): Promise<MoneyActionState> {
+  const user = await requireUser();
+  const parsed = z.object({ requestId: opaqueId, code: z.string().trim().min(8).max(32) }).safeParse({ requestId: formData.get("requestId"), code: formData.get("code") });
+  if (!parsed.success) return { error: "Enter a valid authorization code." };
+  try {
+    const result = await verifyWithdrawalAuthorizationCode({ userId: user.id, actorLabel: user.email, requestId: parsed.data.requestId, stage: "swift_code", code: parsed.data.code });
+    revalidatePath("/app");
+    revalidatePath("/admin");
+    return {
+      success: "SWIFT authorization code verified.",
+      reference: result.requestReference,
+      withdrawalRequestId: parsed.data.requestId,
+      authorizationStage: result.nextStage,
+      authorizationCompleted: result.authorizationCompleted,
+      withdrawalSupport: getWithdrawalSupportDetailsForUser(result.requestReference, user.id),
+    };
+  } catch (error) {
+    return { error: error instanceof WithdrawalError ? error.message : "The authorization code could not be verified.", withdrawalRequestId: parsed.data.requestId, authorizationStage: "awaiting_swift_code" };
   }
 }
 

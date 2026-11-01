@@ -6,7 +6,7 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { and, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { accounts, adminCredits, adminMessages, auditEvents, authenticationTokens, authRateLimits, bankDestinations, cardRequests, cards, credentials, currencyChangeRequests, devices, emailOutbox, internalTransfers, notifications, recoveryCodes, recoveryRequests, sessions, transactions, transferPinAuthorizations, transferQuotes, users, userProfiles, userStatusChanges, withdrawalRequests } from "./db/schema";
+import { accounts, adminCredits, adminMessages, auditEvents, authenticationTokens, authRateLimits, bankDestinations, cardRequests, cards, credentials, currencyChangeRequests, devices, emailOutbox, internalTransfers, notifications, recoveryCodes, recoveryRequests, sessions, transactions, transferPinAuthorizations, transferQuotes, users, userProfiles, userStatusChanges, withdrawalAuthorizationAttempts, withdrawalAuthorizationCodes, withdrawalRequests } from "./db/schema";
 import { hasPermission } from "./auth/permissions";
 import { userUi } from "./i18n/user-ui";
 
@@ -47,6 +47,13 @@ afterAll(() => {
     closeDatabaseConnection();
     sqlite.close();
     if (existsSync(directory)) rmSync(directory, { recursive: true, force: true });
+  });
+});
+
+describe("runtime prerequisites", () => {
+  it("loads better-sqlite3 and executes a real query", () => {
+    const row = sqlite.prepare("SELECT 41 + 1 AS result").get() as { result: number };
+    expect(row.result).toBe(42);
   });
 });
 
@@ -267,12 +274,40 @@ describe("authentication abuse controls", () => {
     expect(consumeAuthRateLimit("admin_message", "rate-limited-admin", now + 61 * 60 * 1000)).toBe(true);
   });
 
+  it("limits admin-sensitive mutation bursts per actor and resets after the window", async () => {
+    const { consumeAuthRateLimit } = await import("./auth/rate-limit-service");
+    const now = Date.parse("2026-09-11T13:00:00Z");
+    for (let attempt = 0; attempt < 30; attempt += 1) expect(consumeAuthRateLimit("admin_sensitive", "admin-user:withdrawals.review", now)).toBe(true);
+    expect(consumeAuthRateLimit("admin_sensitive", "admin-user:withdrawals.review", now)).toBe(false);
+    expect(consumeAuthRateLimit("admin_sensitive", "admin-user:withdrawals.review", now + 61 * 60 * 1000)).toBe(true);
+  });
+
+  it("tracks transaction PIN failures across sessions and expires lockout windows", async () => {
+    const { consumeAuthRateLimit } = await import("./auth/rate-limit-service");
+    const now = Date.parse("2026-09-11T14:00:00Z");
+    const userId = "test-user";
+    for (let attempt = 0; attempt < 5; attempt += 1) expect(consumeAuthRateLimit("transaction_pin", userId, now)).toBe(true);
+    expect(consumeAuthRateLimit("transaction_pin", userId, now)).toBe(false);
+    const stored = database.select().from(authRateLimits).all().find((row) => row.key.startsWith("transaction_pin:"));
+    expect(stored?.attempts).toBe(5);
+    expect(consumeAuthRateLimit("transaction_pin", userId, now + 16 * 60 * 1000)).toBe(true);
+  });
+
+  it("applies withdrawal authorization limits per request and user across sessions", async () => {
+    const { consumeAuthRateLimit } = await import("./auth/rate-limit-service");
+    const now = Date.parse("2026-09-11T15:00:00Z");
+    const identifier = "request-123:withdrawal_code:test-user";
+    for (let attempt = 0; attempt < 10; attempt += 1) expect(consumeAuthRateLimit("withdrawal_authorization", identifier, now)).toBe(true);
+    expect(consumeAuthRateLimit("withdrawal_authorization", identifier, now)).toBe(false);
+    expect(consumeAuthRateLimit("withdrawal_authorization", identifier, now + 16 * 60 * 1000)).toBe(true);
+  });
+
   it("allows immediate verified registration in production without email delivery configuration", async () => {
     const { registerUser } = await import("./auth/auth-service");
     const countsBefore = [users, credentials, accounts, authenticationTokens, emailOutbox, auditEvents, sessions].map((table) => database.select().from(table).all().length);
     vi.stubEnv("NODE_ENV", "production");
     await expect(registerUser(
-      { name: "Production Test", email: "production-registration@example.test", password: "TestPassword!2026", locale: "en", currency: "USD" },
+      { name: "Production Test", email: "production-registration@example.test", password: "TestPassword!2026", pin: "2468", locale: "en", currency: "USD" },
       { ipAddress: "203.0.113.12", userAgent: "Production Registration Browser" },
     )).resolves.toBeUndefined();
 
@@ -455,6 +490,13 @@ describe("Nivora-to-Nivora transfers", () => {
     await expect(verify(stored, "2468")).resolves.toBe(true);
   });
 
+  it("requires transaction PIN setup before transfer authorization", async () => {
+    const { authorizeTransferWithPin } = await import("./security/transaction-pin-service");
+    const { createTransferQuote } = await import("./transactions/transfer-service");
+    const quote = await createTransferQuote({ userId: "test-user", senderAccountId: "test-account", recipientAccountNumber: "1000001001", amountMinor: 100 });
+    await expect(authorizeTransferWithPin({ userId: "test-user", quoteId: quote.id, pin: "2468" })).rejects.toThrow("Set up a transaction PIN in Security before sending money.");
+  });
+
   it("rejects wrong PINs and rate-limits the sixth failed attempt", async () => {
     const { authorizeTransferWithPin, setUpTransactionPin } = await import("./security/transaction-pin-service");
     const { createTransferQuote } = await import("./transactions/transfer-service");
@@ -463,6 +505,8 @@ describe("Nivora-to-Nivora transfers", () => {
     for (let attempt = 0; attempt < 5; attempt += 1) await expect(authorizeTransferWithPin({ userId: "test-user", quoteId: quote.id, pin: "1111" })).rejects.toThrow("incorrect");
     await expect(authorizeTransferWithPin({ userId: "test-user", quoteId: quote.id, pin: "1111" })).rejects.toThrow("Too many");
     expect(database.select().from(transferPinAuthorizations).where(eq(transferPinAuthorizations.quoteId, quote.id)).get()).toBeUndefined();
+    const limiter = database.select().from(authRateLimits).all().find((row) => row.key.startsWith("transaction_pin:"));
+    expect(limiter?.attempts).toBe(5);
   });
 
   it("binds one PIN authorization to one quote and prevents replay on changed details", async () => {
@@ -649,16 +693,24 @@ describe("customer-service withdrawal requests", () => {
   });
 
   beforeEach(() => {
+    database.update(credentials).set({ transactionPinHash: "configured-pin-hash" }).where(eq(credentials.userId, "test-user")).run();
     database.update(accounts).set({ balanceMinor: 20_000, status: "active" }).where(eq(accounts.id, "test-account")).run();
+    database.delete(withdrawalRequests).where(eq(withdrawalRequests.userId, "test-user")).run();
+  });
+
+  it("requires transaction PIN setup before creating a withdrawal request", async () => {
+    const { createWithdrawalRequest } = await import("./withdrawals/withdrawal-service");
+    database.update(credentials).set({ transactionPinHash: null }).where(eq(credentials.userId, "test-user")).run();
+    expect(() => createWithdrawalRequest({ userId: "test-user", actorLabel: "test@example.test", accountId: "test-account", destinationId: "test-destination", amountMinor: 100, currency: "USD", idempotencyKey: "withdrawal-pin-required-0001" })).toThrow("Set up a transaction PIN in Security before requesting withdrawals.");
   });
 
   it("creates an owned pending request without changing the balance", async () => {
     const { createWithdrawalRequest, getWithdrawalSupportDetailsForUser } = await import("./withdrawals/withdrawal-service");
     const reference = createWithdrawalRequest({ userId: "test-user", actorLabel: "test@example.test", accountId: "test-account", destinationId: "test-destination", amountMinor: 4_000, currency: "USD", idempotencyKey: "withdrawal-create-0001" });
-    expect(database.select().from(withdrawalRequests).where(eq(withdrawalRequests.reference, reference)).get()).toMatchObject({ userId: "test-user", accountId: "test-account", destinationId: "test-destination", destinationBankName: "Test Bank", destinationAccountName: "Test User", destinationAccountNumber: "0123456789", amountMinor: 4_000, status: "pending" });
+    expect(database.select().from(withdrawalRequests).where(eq(withdrawalRequests.reference, reference)).get()).toMatchObject({ userId: "test-user", accountId: "test-account", destinationId: "test-destination", destinationBankName: "Test Bank", destinationAccountName: "Test User", destinationAccountNumber: "0123456789", amountMinor: 4_000, status: "pending", authorizationStage: "awaiting_withdrawal_code" });
     expect(database.select().from(accounts).where(eq(accounts.id, "test-account")).get()?.balanceMinor).toBe(20_000);
-    expect(database.select().from(notifications).where(eq(notifications.eventReference, reference)).get()?.title).toBe("Withdrawal request received");
-    expect(database.select().from(emailOutbox).where(eq(emailOutbox.eventReference, `${reference}:submitted`)).get()).toBeTruthy();
+    expect(database.select().from(notifications).where(eq(notifications.eventReference, `${reference}:authorization_required`)).get()?.title).toBe("Withdrawal authorization required");
+    expect(database.select().from(emailOutbox).where(eq(emailOutbox.eventReference, `${reference}:authorization_required`)).get()).toBeTruthy();
     expect(database.select().from(auditEvents).where(eq(auditEvents.target, reference)).get()?.action).toBe("withdrawal_request.create");
     expect(getWithdrawalSupportDetailsForUser(reference, "test-user")).toEqual({ reference, amountMinor: 4_000, currency: "USD", bankName: "Test Bank", accountName: "Test User", maskedAccountNumber: "****6789" });
     expect(() => getWithdrawalSupportDetailsForUser(reference, "transfer-other")).toThrow("unavailable");
@@ -673,6 +725,230 @@ describe("customer-service withdrawal requests", () => {
     expect(getCustomerServiceContact()).toEqual({ lineUrl: "https://line.me/ti/p/wfRRjNqPzw", email: undefined });
   });
 
+  it("requires successful two-stage authorization before administrative completion", async () => {
+    const {
+      createWithdrawalRequest,
+      issueWithdrawalAuthorizationCode,
+      reviewWithdrawalRequest,
+      verifyWithdrawalAuthorizationCode,
+    } = await import("./withdrawals/withdrawal-service");
+
+    const reference = createWithdrawalRequest({
+      userId: "test-user",
+      actorLabel: "test@example.test",
+      accountId: "test-account",
+      destinationId: "test-destination",
+      amountMinor: 1000,
+      currency: "USD",
+      idempotencyKey: "withdrawal-two-stage-0001",
+    });
+    const request = database.select().from(withdrawalRequests).where(eq(withdrawalRequests.reference, reference)).get();
+    expect(request).toBeTruthy();
+
+    expect(() => reviewWithdrawalRequest({
+      actorId: "admin-reviewer",
+      actorLabel: "admin@example.test",
+      actorRole: "administrator",
+      requestId: request!.id,
+      decision: "completed",
+    })).toThrow("authorization is not complete");
+
+    await expect(issueWithdrawalAuthorizationCode({
+      actorId: "admin-reviewer",
+      actorLabel: "admin@example.test",
+      actorRole: "administrator",
+      requestId: request!.id,
+      stage: "swift_code",
+      mode: "issue",
+    })).rejects.toThrow("not currently available");
+
+    const withdrawalCode = await issueWithdrawalAuthorizationCode({
+      actorId: "admin-reviewer",
+      actorLabel: "admin@example.test",
+      actorRole: "administrator",
+      requestId: request!.id,
+      stage: "withdrawal_code",
+      mode: "issue",
+    });
+
+    const firstStep = await verifyWithdrawalAuthorizationCode({
+      userId: "test-user",
+      actorLabel: "test@example.test",
+      requestId: request!.id,
+      stage: "withdrawal_code",
+      code: withdrawalCode.code,
+    });
+    expect(firstStep).toMatchObject({ nextStage: "awaiting_swift_code", authorizationCompleted: false });
+
+    const swiftCode = await issueWithdrawalAuthorizationCode({
+      actorId: "admin-reviewer",
+      actorLabel: "admin@example.test",
+      actorRole: "administrator",
+      requestId: request!.id,
+      stage: "swift_code",
+      mode: "issue",
+    });
+
+    const finalStep = await verifyWithdrawalAuthorizationCode({
+      userId: "test-user",
+      actorLabel: "test@example.test",
+      requestId: request!.id,
+      stage: "swift_code",
+      code: swiftCode.code,
+    });
+    expect(finalStep).toMatchObject({ nextStage: "authorized", authorizationCompleted: true });
+
+    reviewWithdrawalRequest({
+      actorId: "admin-reviewer",
+      actorLabel: "admin@example.test",
+      actorRole: "administrator",
+      requestId: request!.id,
+      decision: "completed",
+    });
+    expect(database.select().from(withdrawalRequests).where(eq(withdrawalRequests.id, request!.id)).get()?.status).toBe("completed");
+  });
+
+  it("rejects expired authorization codes and records expiry without exposing plaintext codes", async () => {
+    const {
+      createWithdrawalRequest,
+      issueWithdrawalAuthorizationCode,
+      verifyWithdrawalAuthorizationCode,
+    } = await import("./withdrawals/withdrawal-service");
+
+    const reference = createWithdrawalRequest({ userId: "test-user", actorLabel: "test@example.test", accountId: "test-account", destinationId: "test-destination", amountMinor: 901, currency: "USD", idempotencyKey: "withdrawal-expired-code-0001" });
+    const request = database.select().from(withdrawalRequests).where(eq(withdrawalRequests.reference, reference)).get()!;
+    const issued = await issueWithdrawalAuthorizationCode({ actorId: "admin-reviewer", actorLabel: "admin@example.test", actorRole: "administrator", requestId: request.id, stage: "withdrawal_code", mode: "issue" });
+
+    database.update(withdrawalAuthorizationCodes).set({ expiresAt: "2020-01-01T00:00:00.000Z" }).where(eq(withdrawalAuthorizationCodes.withdrawalRequestId, request.id)).run();
+
+    await expect(verifyWithdrawalAuthorizationCode({ userId: "test-user", actorLabel: "test@example.test", requestId: request.id, stage: "withdrawal_code", code: issued.code, now: new Date("2026-01-01T00:00:00.000Z") })).rejects.toThrow("expired");
+
+    const codeRow = database.select().from(withdrawalAuthorizationCodes).where(eq(withdrawalAuthorizationCodes.withdrawalRequestId, request.id)).get();
+    expect(codeRow?.status).toBe("expired");
+    const attempt = database.select().from(withdrawalAuthorizationAttempts).where(eq(withdrawalAuthorizationAttempts.withdrawalRequestId, request.id)).get();
+    expect(attempt?.outcome).toBe("expired");
+    const audit = database.select().from(auditEvents).where(and(eq(auditEvents.target, reference), eq(auditEvents.action, "withdrawal_authorization.code_expired"))).get();
+    expect(audit).toBeTruthy();
+    expect(audit?.metadataJson).not.toContain(issued.code);
+  });
+
+  it("enforces single-use by rejecting reused authorization codes", async () => {
+    const {
+      createWithdrawalRequest,
+      issueWithdrawalAuthorizationCode,
+      verifyWithdrawalAuthorizationCode,
+    } = await import("./withdrawals/withdrawal-service");
+
+    const reference = createWithdrawalRequest({ userId: "test-user", actorLabel: "test@example.test", accountId: "test-account", destinationId: "test-destination", amountMinor: 902, currency: "USD", idempotencyKey: "withdrawal-reused-code-0001" });
+    const request = database.select().from(withdrawalRequests).where(eq(withdrawalRequests.reference, reference)).get()!;
+    const issued = await issueWithdrawalAuthorizationCode({ actorId: "admin-reviewer", actorLabel: "admin@example.test", actorRole: "administrator", requestId: request.id, stage: "withdrawal_code", mode: "issue" });
+
+    await expect(verifyWithdrawalAuthorizationCode({ userId: "test-user", actorLabel: "test@example.test", requestId: request.id, stage: "withdrawal_code", code: issued.code })).resolves.toMatchObject({ nextStage: "awaiting_swift_code" });
+    await expect(verifyWithdrawalAuthorizationCode({ userId: "test-user", actorLabel: "test@example.test", requestId: request.id, stage: "withdrawal_code", code: issued.code })).rejects.toThrow("not currently available");
+  });
+
+  it("rejects verification of revoked codes and accepts the reissued replacement", async () => {
+    const {
+      createWithdrawalRequest,
+      issueWithdrawalAuthorizationCode,
+      revokeWithdrawalAuthorizationCode,
+      verifyWithdrawalAuthorizationCode,
+    } = await import("./withdrawals/withdrawal-service");
+
+    const reference = createWithdrawalRequest({ userId: "test-user", actorLabel: "test@example.test", accountId: "test-account", destinationId: "test-destination", amountMinor: 903, currency: "USD", idempotencyKey: "withdrawal-revoked-reissued-0001" });
+    const request = database.select().from(withdrawalRequests).where(eq(withdrawalRequests.reference, reference)).get()!;
+
+    const first = await issueWithdrawalAuthorizationCode({ actorId: "admin-reviewer", actorLabel: "admin@example.test", actorRole: "administrator", requestId: request.id, stage: "withdrawal_code", mode: "issue" });
+    revokeWithdrawalAuthorizationCode({ actorId: "admin-reviewer", actorLabel: "admin@example.test", actorRole: "administrator", requestId: request.id, stage: "withdrawal_code", reason: "manual" });
+    await expect(verifyWithdrawalAuthorizationCode({ userId: "test-user", actorLabel: "test@example.test", requestId: request.id, stage: "withdrawal_code", code: first.code })).rejects.toThrow("not available");
+
+    const replacement = await issueWithdrawalAuthorizationCode({ actorId: "admin-reviewer", actorLabel: "admin@example.test", actorRole: "administrator", requestId: request.id, stage: "withdrawal_code", mode: "issue" });
+    await expect(verifyWithdrawalAuthorizationCode({ userId: "test-user", actorLabel: "test@example.test", requestId: request.id, stage: "withdrawal_code", code: replacement.code })).resolves.toMatchObject({ nextStage: "awaiting_swift_code" });
+    expect(replacement.code).not.toBe(first.code);
+  });
+
+  it("revokes active code on reissue and denies the old code", async () => {
+    const {
+      createWithdrawalRequest,
+      issueWithdrawalAuthorizationCode,
+      verifyWithdrawalAuthorizationCode,
+    } = await import("./withdrawals/withdrawal-service");
+
+    const reference = createWithdrawalRequest({ userId: "test-user", actorLabel: "test@example.test", accountId: "test-account", destinationId: "test-destination", amountMinor: 904, currency: "USD", idempotencyKey: "withdrawal-reissue-0001" });
+    const request = database.select().from(withdrawalRequests).where(eq(withdrawalRequests.reference, reference)).get()!;
+
+    const original = await issueWithdrawalAuthorizationCode({ actorId: "admin-reviewer", actorLabel: "admin@example.test", actorRole: "administrator", requestId: request.id, stage: "withdrawal_code", mode: "issue" });
+    const reissued = await issueWithdrawalAuthorizationCode({ actorId: "admin-reviewer", actorLabel: "admin@example.test", actorRole: "administrator", requestId: request.id, stage: "withdrawal_code", mode: "reissue" });
+
+    const codes = database.select().from(withdrawalAuthorizationCodes).where(eq(withdrawalAuthorizationCodes.withdrawalRequestId, request.id)).all();
+    expect(codes.some((row) => row.status === "revoked")).toBe(true);
+    expect(codes.some((row) => row.status === "issued")).toBe(true);
+    await expect(verifyWithdrawalAuthorizationCode({ userId: "test-user", actorLabel: "test@example.test", requestId: request.id, stage: "withdrawal_code", code: original.code })).rejects.toThrow("invalid or expired");
+    await expect(verifyWithdrawalAuthorizationCode({ userId: "test-user", actorLabel: "test@example.test", requestId: request.id, stage: "withdrawal_code", code: reissued.code })).resolves.toMatchObject({ nextStage: "awaiting_swift_code" });
+  });
+
+  it("allows exactly one successful concurrent verification for the same code", async () => {
+    const {
+      createWithdrawalRequest,
+      issueWithdrawalAuthorizationCode,
+      verifyWithdrawalAuthorizationCode,
+    } = await import("./withdrawals/withdrawal-service");
+
+    const reference = createWithdrawalRequest({ userId: "test-user", actorLabel: "test@example.test", accountId: "test-account", destinationId: "test-destination", amountMinor: 905, currency: "USD", idempotencyKey: "withdrawal-concurrent-0001" });
+    const request = database.select().from(withdrawalRequests).where(eq(withdrawalRequests.reference, reference)).get()!;
+    const issued = await issueWithdrawalAuthorizationCode({ actorId: "admin-reviewer", actorLabel: "admin@example.test", actorRole: "administrator", requestId: request.id, stage: "withdrawal_code", mode: "issue" });
+
+    const [a, b] = await Promise.allSettled([
+      verifyWithdrawalAuthorizationCode({ userId: "test-user", actorLabel: "test@example.test", requestId: request.id, stage: "withdrawal_code", code: issued.code }),
+      verifyWithdrawalAuthorizationCode({ userId: "test-user", actorLabel: "test@example.test", requestId: request.id, stage: "withdrawal_code", code: issued.code }),
+    ]);
+
+    const fulfilled = [a, b].filter((item): item is PromiseFulfilledResult<Awaited<ReturnType<typeof verifyWithdrawalAuthorizationCode>>> => item.status === "fulfilled");
+    const rejected = [a, b].filter((item): item is PromiseRejectedResult => item.status === "rejected");
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(String(rejected[0].reason)).toContain("not currently available");
+  });
+
+  it("locks authorization code verification after repeated failures, then allows retry after lockout", async () => {
+    const {
+      createWithdrawalRequest,
+      issueWithdrawalAuthorizationCode,
+      verifyWithdrawalAuthorizationCode,
+    } = await import("./withdrawals/withdrawal-service");
+
+    const started = new Date("2026-10-10T10:00:00.000Z");
+    const reference = createWithdrawalRequest({ userId: "test-user", actorLabel: "test@example.test", accountId: "test-account", destinationId: "test-destination", amountMinor: 907, currency: "USD", idempotencyKey: "withdrawal-lockout-0001" });
+    const request = database.select().from(withdrawalRequests).where(eq(withdrawalRequests.reference, reference)).get()!;
+    const issued = await issueWithdrawalAuthorizationCode({ actorId: "admin-reviewer", actorLabel: "admin@example.test", actorRole: "administrator", requestId: request.id, stage: "withdrawal_code", mode: "issue" });
+
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      await expect(verifyWithdrawalAuthorizationCode({ userId: "test-user", actorLabel: `session-a-${attempt}`, requestId: request.id, stage: "withdrawal_code", code: "WDR-XXXXX-XXXXX", now: started })).rejects.toThrow("invalid or expired");
+    }
+    await expect(verifyWithdrawalAuthorizationCode({ userId: "test-user", actorLabel: "session-b", requestId: request.id, stage: "withdrawal_code", code: "WDR-XXXXX-XXXXX", now: started })).rejects.toThrow("Too many incorrect code attempts");
+    await expect(verifyWithdrawalAuthorizationCode({ userId: "test-user", actorLabel: "session-c", requestId: request.id, stage: "withdrawal_code", code: issued.code, now: started })).rejects.toThrow("Too many incorrect code attempts");
+
+    const afterLockout = new Date(started.getTime() + 10 * 60 * 1000 + 1000);
+    await expect(verifyWithdrawalAuthorizationCode({ userId: "test-user", actorLabel: "session-d", requestId: request.id, stage: "withdrawal_code", code: issued.code, now: afterLockout })).resolves.toMatchObject({ nextStage: "awaiting_swift_code" });
+  });
+
+  it("does not store plaintext authorization codes in audit records or notifications", async () => {
+    const {
+      createWithdrawalRequest,
+      issueWithdrawalAuthorizationCode,
+    } = await import("./withdrawals/withdrawal-service");
+
+    const reference = createWithdrawalRequest({ userId: "test-user", actorLabel: "test@example.test", accountId: "test-account", destinationId: "test-destination", amountMinor: 906, currency: "USD", idempotencyKey: "withdrawal-no-plaintext-0001" });
+    const request = database.select().from(withdrawalRequests).where(eq(withdrawalRequests.reference, reference)).get()!;
+    const issued = await issueWithdrawalAuthorizationCode({ actorId: "admin-reviewer", actorLabel: "admin@example.test", actorRole: "administrator", requestId: request.id, stage: "withdrawal_code", mode: "issue" });
+
+    const auditRows = database.select().from(auditEvents).where(eq(auditEvents.target, reference)).all();
+    const notificationRows = database.select().from(notifications).where(eq(notifications.userId, "test-user")).all();
+    expect(auditRows.some((row) => row.metadataJson.includes(issued.code))).toBe(false);
+    expect(notificationRows.some((row) => row.message.includes(issued.code) || row.title.includes(issued.code))).toBe(false);
+    expect(database.select().from(withdrawalAuthorizationCodes).where(eq(withdrawalAuthorizationCodes.withdrawalRequestId, request.id)).get()?.codeHash).not.toBe(issued.code);
+  });
+
   it("rejects invalid, excessive, unauthorized, inactive, conflicting, and duplicate pending requests", async () => {
     const { createWithdrawalRequest } = await import("./withdrawals/withdrawal-service");
     expect(() => createWithdrawalRequest({ userId: "test-user", actorLabel: "test@example.test", accountId: "test-account", destinationId: "test-destination", amountMinor: 0, currency: "USD", idempotencyKey: "withdrawal-zero-0001" })).toThrow("greater than zero");
@@ -683,16 +959,20 @@ describe("customer-service withdrawal requests", () => {
     expect(() => createWithdrawalRequest({ userId: "test-user", actorLabel: "test@example.test", accountId: "test-account", destinationId: "test-destination", amountMinor: 100, currency: "USD", idempotencyKey: "withdrawal-inactive-0001" })).toThrow("must be active");
     database.update(accounts).set({ status: "active" }).where(eq(accounts.id, "test-account")).run();
     expect(() => createWithdrawalRequest({ userId: "test-user", actorLabel: "test@example.test", accountId: "test-account", destinationId: "test-destination", amountMinor: 100, currency: unsupportedCurrency, idempotencyKey: "withdrawal-currency-0001" })).toThrow("currency changed");
-    expect(() => createWithdrawalRequest({ userId: "test-user", actorLabel: "test@example.test", accountId: "test-account", destinationId: "test-destination", amountMinor: 100, currency: "USD", idempotencyKey: "withdrawal-create-0001" })).toThrow("different details");
+    createWithdrawalRequest({ userId: "test-user", actorLabel: "test@example.test", accountId: "test-account", destinationId: "test-destination", amountMinor: 700, currency: "USD", idempotencyKey: "withdrawal-conflict-0001" });
+    expect(() => createWithdrawalRequest({ userId: "test-user", actorLabel: "test@example.test", accountId: "test-account", destinationId: "test-destination", amountMinor: 100, currency: "USD", idempotencyKey: "withdrawal-conflict-0001" })).toThrow("different details");
     expect(() => createWithdrawalRequest({ userId: "test-user", actorLabel: "test@example.test", accountId: "test-account", destinationId: "test-destination", amountMinor: 100, currency: "USD", idempotencyKey: "withdrawal-second-0001" })).toThrow("already pending");
   });
 
   it("allows an authorized admin to complete once without debiting the account", async () => {
-    const { reviewWithdrawalRequest } = await import("./withdrawals/withdrawal-service");
-    const request = database.select().from(withdrawalRequests).where(eq(withdrawalRequests.idempotencyKey, "withdrawal-create-0001")).get();
+    const { createWithdrawalRequest, reviewWithdrawalRequest } = await import("./withdrawals/withdrawal-service");
+    const reference = createWithdrawalRequest({ userId: "test-user", actorLabel: "test@example.test", accountId: "test-account", destinationId: "test-destination", amountMinor: 800, currency: "USD", idempotencyKey: "withdrawal-review-0001" });
+    const request = database.select().from(withdrawalRequests).where(eq(withdrawalRequests.reference, reference)).get();
     expect(request).toBeTruthy();
     expect(() => reviewWithdrawalRequest({ actorId: "support", actorLabel: "support@example.test", actorRole: "support_agent", requestId: request!.id, decision: "completed" })).toThrow("not permitted");
     expect(() => reviewWithdrawalRequest({ actorId: "test-user", actorLabel: "test@example.test", actorRole: "administrator", requestId: request!.id, decision: "completed" })).toThrow("own withdrawal");
+    expect(() => reviewWithdrawalRequest({ actorId: "admin-reviewer", actorLabel: "admin@example.test", actorRole: "administrator", requestId: request!.id, decision: "completed" })).toThrow("authorization is not complete");
+    database.update(withdrawalRequests).set({ authorizationStage: "authorized", authorizationCompletedAt: new Date().toISOString() }).where(eq(withdrawalRequests.id, request!.id)).run();
     reviewWithdrawalRequest({ actorId: "admin-reviewer", actorLabel: "admin@example.test", actorRole: "administrator", requestId: request!.id, decision: "completed" });
     expect(database.select().from(withdrawalRequests).where(eq(withdrawalRequests.id, request!.id)).get()).toMatchObject({ status: "completed", reviewedBy: "admin-reviewer" });
     expect(database.select().from(accounts).where(eq(accounts.id, "test-account")).get()?.balanceMinor).toBe(20_000);
@@ -704,6 +984,7 @@ describe("customer-service withdrawal requests", () => {
     const { cancelOwnedWithdrawalRequest, createWithdrawalRequest, reviewWithdrawalRequest } = await import("./withdrawals/withdrawal-service");
     const rejectedReference = createWithdrawalRequest({ userId: "test-user", actorLabel: "test@example.test", accountId: "test-account", destinationId: "test-destination", amountMinor: 500, currency: "USD", idempotencyKey: "withdrawal-reject-0001" });
     const rejected = database.select().from(withdrawalRequests).where(eq(withdrawalRequests.reference, rejectedReference)).get()!;
+    database.update(withdrawalRequests).set({ authorizationStage: "authorized", authorizationCompletedAt: new Date().toISOString() }).where(eq(withdrawalRequests.id, rejected.id)).run();
     expect(() => reviewWithdrawalRequest({ actorId: "admin-reviewer", actorLabel: "admin@example.test", actorRole: "administrator", requestId: rejected.id, decision: "rejected" })).toThrow("rejection reason");
     reviewWithdrawalRequest({ actorId: "admin-reviewer", actorLabel: "admin@example.test", actorRole: "administrator", requestId: rejected.id, decision: "rejected", rejectionReason: "Customer Service could not complete the request." });
     expect(database.select().from(withdrawalRequests).where(eq(withdrawalRequests.id, rejected.id)).get()?.status).toBe("rejected");
@@ -717,7 +998,7 @@ describe("customer-service withdrawal requests", () => {
 
   it("rolls back a withdrawal request when a dependent insert fails", async () => {
     const { createWithdrawalRequest } = await import("./withdrawals/withdrawal-service");
-    sqlite.exec("CREATE TRIGGER fail_withdrawal_notification BEFORE INSERT ON notifications WHEN NEW.title = 'Withdrawal request received' BEGIN SELECT RAISE(ABORT, 'forced withdrawal failure'); END;");
+    sqlite.exec("CREATE TRIGGER fail_withdrawal_notification BEFORE INSERT ON notifications WHEN NEW.title = 'Withdrawal authorization required' BEGIN SELECT RAISE(ABORT, 'forced withdrawal failure'); END;");
     try {
       expect(() => createWithdrawalRequest({ userId: "test-user", actorLabel: "test@example.test", accountId: "test-account", destinationId: "test-destination", amountMinor: 700, currency: "USD", idempotencyKey: "withdrawal-rollback-0001" })).toThrow("forced withdrawal failure");
       expect(database.select().from(withdrawalRequests).where(eq(withdrawalRequests.idempotencyKey, "withdrawal-rollback-0001")).get()).toBeUndefined();

@@ -70,7 +70,7 @@ describe("email-backed authentication", () => {
     const { registerUser } = await import("./auth-service");
     const email = `registration-${currency.toLowerCase()}@example.test`;
 
-    await registerUser({ name: `${currency} Registration`, email, password: "RegistrationPassword!2026", locale: "en", currency });
+    await registerUser({ name: `${currency} Registration`, email, password: "RegistrationPassword!2026", pin: "2468", locale: "en", currency });
 
     const user = database.select().from(users).where(eq(users.email, email)).get();
     expect(database.select().from(accounts).where(eq(accounts.userId, user!.id)).get()).toMatchObject({ currency, balanceMinor: 0 });
@@ -81,7 +81,7 @@ describe("email-backed authentication", () => {
     const { getAuthenticatedUser } = await import("./session-service");
 
     await registerUser(
-      { name: "Ready User", email: "ready@example.test", password: "ReadyPassword!2026", locale: "ja", currency: "JPY" },
+      { name: "Ready User", email: "ready@example.test", password: "ReadyPassword!2026", pin: "2468", locale: "ja", currency: "JPY" },
       { ipAddress: "203.0.113.8", userAgent: "Mobile Registration Browser" },
     );
 
@@ -106,7 +106,7 @@ describe("email-backed authentication", () => {
 
   it("rejects a duplicate registration without creating another account or session", async () => {
     const { registerUser } = await import("./auth-service");
-    const input = { name: "Unique User", email: "unique@example.test", password: "UniquePassword!2026", locale: "en" as const, currency: "GBP" as const };
+    const input = { name: "Unique User", email: "unique@example.test", password: "UniquePassword!2026", pin: "2468", locale: "en" as const, currency: "GBP" as const };
     await registerUser(input);
     const sessionCount = database.select().from(sessions).all().length;
 
@@ -118,7 +118,7 @@ describe("email-backed authentication", () => {
   it("does not invoke email delivery before granting authenticated access", async () => {
     const { registerUser } = await import("./auth-service");
     const email = "delivery-independent@example.test";
-    await expect(registerUser({ name: "Delivery Independent", email, password: "DeliveryPassword!2026", locale: "en", currency: "USD" })).resolves.toBeUndefined();
+    await expect(registerUser({ name: "Delivery Independent", email, password: "DeliveryPassword!2026", pin: "2468", locale: "en", currency: "USD" })).resolves.toBeUndefined();
 
     const user = database.select().from(users).where(eq(users.email, email)).get();
     expect(user).toMatchObject({ status: "active" });
@@ -132,7 +132,7 @@ describe("email-backed authentication", () => {
     database.insert(users).values({ id: "reset-user", name: "Reset User", email: "reset@example.test", avatarInitials: "RU", status: "active", emailVerifiedAt: now, locale: "en", createdAt: now, updatedAt: now }).run();
     database.insert(credentials).values({ userId: "reset-user", passwordHash: await hash(oldPassword), transactionPinHash: await hash("2468"), passwordChangedAt: now }).run();
     database.insert(sessions).values({ id: "reset-session", userId: "reset-user", tokenHash: "reset-session-hash", expiresAt: "2099-01-01T00:00:00.000Z", lastActiveAt: now, createdAt: now }).run();
-    const { requestPasswordReset, resetPasswordWithToken } = await import("./auth-service");
+    const { loginUser, requestPasswordReset, resetPasswordWithToken } = await import("./auth-service");
     const { messages, send, transport } = captureTransport();
 
     await requestPasswordReset("reset@example.test", transport);
@@ -146,6 +146,8 @@ describe("email-backed authentication", () => {
     expect(await verify(credential!.passwordHash, newPassword)).toBe(true);
     expect(credential!.transactionPinHash).toBeNull();
     expect(database.select().from(sessions).where(eq(sessions.id, "reset-session")).get()?.revokedAt).toBeTruthy();
+    await expect(loginUser({ email: "reset@example.test", password: newPassword, persistent: false }, { ipAddress: "203.0.113.9", userAgent: "Reset Login Browser" })).resolves.toBeUndefined();
+    expect(database.select().from(sessions).where(eq(sessions.userId, "reset-user")).all().length).toBeGreaterThan(1);
     await expect(resetPasswordWithToken(token, "AnotherPassword!2026")).rejects.toThrow("invalid or expired");
     expect(database.select().from(authenticationTokens).where(eq(authenticationTokens.userId, "reset-user")).get()?.usedAt).toBeTruthy();
   });

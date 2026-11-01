@@ -127,6 +127,13 @@
       "when": 1790879638509,
       "tag": "0017_tough_zombie",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791000000000,
+      "tag": "0018_withdrawal_two_stage_authorization",
+      "breakpoints": true
     }
   ]
 }

@@ -28,6 +28,8 @@ const validRegistration = () => {
   formData.set("name", "Registration Test");
   formData.set("email", "registration@example.test");
   formData.set("password", "TestPassword!2026");
+  formData.set("pin", "2468");
+  formData.set("confirmation", "2468");
   formData.set("locale", "en");
   formData.set("currency", "USD");
   return formData;
@@ -41,7 +43,37 @@ describe("registerAction", () => {
     formData.delete("currency");
 
     await expect(registerAction({}, formData)).resolves.toEqual({
-      error: "Use a valid name, email, and a password of at least 12 characters.",
+      error: "Use a valid name, email, password, and exactly 4-digit transaction PIN.",
+    });
+    expect(registerUser).not.toHaveBeenCalled();
+  });
+
+  it("rejects registration without a transaction PIN", async () => {
+    const formData = validRegistration();
+    formData.delete("pin");
+
+    await expect(registerAction({}, formData)).resolves.toEqual({
+      error: "Use a valid name, email, password, and exactly 4-digit transaction PIN.",
+    });
+    expect(registerUser).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid transaction PIN format", async () => {
+    const formData = validRegistration();
+    formData.set("pin", "12a4");
+
+    await expect(registerAction({}, formData)).resolves.toEqual({
+      error: "Use a valid name, email, password, and exactly 4-digit transaction PIN.",
+    });
+    expect(registerUser).not.toHaveBeenCalled();
+  });
+
+  it("rejects mismatched transaction PIN confirmation", async () => {
+    const formData = validRegistration();
+    formData.set("confirmation", "1357");
+
+    await expect(registerAction({}, formData)).resolves.toEqual({
+      error: "Transaction PINs do not match.",
     });
     expect(registerUser).not.toHaveBeenCalled();
   });
@@ -58,7 +90,7 @@ describe("registerAction", () => {
     vi.mocked(registerUser).mockResolvedValueOnce(undefined);
 
     await expect(registerAction({}, validRegistration())).rejects.toThrow("NEXT_REDIRECT");
-    expect(registerUser).toHaveBeenCalledWith(expect.objectContaining({ email: "registration@example.test", currency: "USD" }), {
+    expect(registerUser).toHaveBeenCalledWith(expect.objectContaining({ email: "registration@example.test", currency: "USD", pin: "2468" }), {
       ipAddress: "203.0.113.4",
       userAgent: "Registration Test Browser",
     });

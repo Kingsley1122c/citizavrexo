@@ -15,6 +15,7 @@ import type { Currency } from "@/lib/currency";
 import { userUi } from "@/lib/i18n/user-ui";
 import { deriveActionToken, hashActionToken } from "./action-token";
 import { createSession } from "./session-service";
+import { hashTransactionPin } from "@/lib/security/transaction-pin-service";
 
 const initials = (name: string) => name.split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("");
 const passwordOptions = { memoryCost: 19456, timeCost: 2, parallelism: 1 };
@@ -24,7 +25,7 @@ const passwordSchema = z.string().min(12).max(128);
 const safeName = z.string().trim().min(2).max(100).regex(/^[^\p{Cc}\p{Cf}]+$/u);
 type SessionRequest = { ipAddress?: string; userAgent?: string };
 
-export async function registerUser(input: { name: string; email: string; password: string; locale: Locale; currency: Currency }, request?: SessionRequest): Promise<void> {
+export async function registerUser(input: { name: string; email: string; password: string; pin: string; locale: Locale; currency: Currency }, request?: SessionRequest): Promise<void> {
   const name = safeName.parse(input.name);
   const email = input.email.trim().toLowerCase();
   const t = userUi(input.locale);
@@ -32,13 +33,14 @@ export async function registerUser(input: { name: string; email: string; passwor
   if (existing.length) throw new Error("Unable to create account.");
   const userId = randomUUID(); const now = new Date().toISOString();
   const passwordHash = await hashPassword(input.password);
+  const transactionPinHash = await hashTransactionPin(input.pin);
   db.transaction((tx) => {
     const accountNumber = generateAccountNumber((number) => Boolean(tx.select({ id: accounts.id }).from(accounts).where(eq(accounts.number, number)).get()));
     tx.insert(users).values({ id: userId, name, email, avatarInitials: initials(name), status: "active", emailVerifiedAt: now, locale: input.locale, displayCurrency: input.currency, createdAt: now, updatedAt: now }).run();
-    tx.insert(credentials).values({ userId, passwordHash, passwordChangedAt: now }).run();
+    tx.insert(credentials).values({ userId, passwordHash, transactionPinHash, passwordChangedAt: now }).run();
     tx.insert(accounts).values({ id: randomUUID(), userId, name: "Personal Account", number: accountNumber, type: "personal", currency: input.currency, balanceMinor: 0, status: "active", createdAt: now, updatedAt: now }).run();
     persistUserEvent(tx, { userId, email, displayName: name, locale: input.locale, kind: "system", title: "Welcome to Nivora Core", message: "Your account is ready. Review your profile and security settings to finish setup.", emailEvent: "welcome", eventKey: `WELCOME-${userId}`, publicReference: `WELCOME-${userId}`, emailSummary: t.notifications.messageWelcomeReady, important: true, createdAt: now });
-    tx.insert(auditEvents).values({ id: `AUD-${randomUUID()}`, actorId: userId, actorLabel: email, action: "user.register", target: userId, result: "success", metadataJson: JSON.stringify({ accountCurrency: input.currency, emailVerified: true }), timestamp: now }).run();
+    tx.insert(auditEvents).values({ id: `AUD-${randomUUID()}`, actorId: userId, actorLabel: email, action: "user.register", target: userId, result: "success", metadataJson: JSON.stringify({ accountCurrency: input.currency, emailVerified: true, transactionPinConfigured: true }), timestamp: now }).run();
   }, { behavior: "immediate" });
   await createSession(userId, false, request);
 }

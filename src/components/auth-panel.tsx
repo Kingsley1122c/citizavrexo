@@ -33,6 +33,7 @@ export function AuthPanel({
   unavailable?: boolean;
 }) {
   const [show, setShow] = useState(false);
+  const [showPin, setShowPin] = useState(false);
   const [locale, setLocale] = useState<Locale>("en");
   const localeHydrated = useRef(false);
   const [state, formAction, pending] = useActionState(action, {});
@@ -154,6 +155,47 @@ export function AuthPanel({
                 </button>
               </span>
             </label>
+          )}
+          {mode === "register" && (
+            <>
+              <label>
+                {t.app.securityView.transactionPin}
+                <span>
+                  <LockKeyhole size={17} />
+                  <input
+                    name="pin"
+                    type={showPin ? "text" : "password"}
+                    inputMode="numeric"
+                    pattern="[0-9]{4}"
+                    minLength={4}
+                    maxLength={4}
+                    autoComplete="new-password"
+                    placeholder="0000"
+                    required
+                  />
+                  <button type="button" aria-label={showPin ? t.auth.hidePassword : t.auth.showPassword} onClick={() => setShowPin(!showPin)}>
+                    <Eye size={17} />
+                  </button>
+                </span>
+              </label>
+              <label>
+                {`Confirm ${t.app.securityView.transactionPin}`}
+                <span>
+                  <LockKeyhole size={17} />
+                  <input
+                    name="confirmation"
+                    type={showPin ? "text" : "password"}
+                    inputMode="numeric"
+                    pattern="[0-9]{4}"
+                    minLength={4}
+                    maxLength={4}
+                    autoComplete="new-password"
+                    placeholder="0000"
+                    required
+                  />
+                </span>
+              </label>
+            </>
           )}
           {mode === "login" && (
             <div className="auth-options">

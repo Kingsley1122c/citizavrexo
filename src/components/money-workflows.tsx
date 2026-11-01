@@ -22,6 +22,8 @@ import {
   lookupTransferRecipientAction,
   requestWithdrawalAction,
   sendMoneyAction,
+  verifyWithdrawalCodeAction,
+  verifyWithdrawalSwiftCodeAction,
 } from "@/app/user-actions";
 import type { Account, BankDestination, WithdrawalRequest } from "@/lib/domain";
 import type { Locale } from "@/lib/i18n/config";
@@ -375,6 +377,10 @@ function WithdrawalDialog({
   const [amount, setAmount] = useState("");
   const [reviewing, setReviewing] = useState(false);
   const [state, action, pending] = useActionState(requestWithdrawalAction, {});
+  const [withdrawalCodeState, verifyWithdrawalCode, verifyingWithdrawalCode] = useActionState(verifyWithdrawalCodeAction, {});
+  const [swiftCodeState, verifySwiftCode, verifyingSwiftCode] = useActionState(verifyWithdrawalSwiftCodeAction, {});
+  const [withdrawalCode, setWithdrawalCode] = useState("");
+  const [swiftCode, setSwiftCode] = useState("");
   const account = accounts.find((item) => item.id === accountId) ?? accounts[0];
   const availableDestinations = destinations.filter(
     (item) => item.currency === account?.currency,
@@ -388,21 +394,34 @@ function WithdrawalDialog({
   const [idempotencyKey] = useState(
     () => `withdrawal-ui-${crypto.randomUUID()}`,
   );
+  const currentRequestId = swiftCodeState.withdrawalRequestId ?? withdrawalCodeState.withdrawalRequestId ?? state.withdrawalRequestId;
+  const currentReference = swiftCodeState.reference ?? withdrawalCodeState.reference ?? state.reference;
+  const currentSupport = swiftCodeState.withdrawalSupport ?? withdrawalCodeState.withdrawalSupport ?? state.withdrawalSupport;
+  const currentStage = swiftCodeState.authorizationStage ?? withdrawalCodeState.authorizationStage ?? state.authorizationStage;
+  const authorizationCompleted = Boolean(swiftCodeState.authorizationCompleted ?? withdrawalCodeState.authorizationCompleted ?? state.authorizationCompleted);
+  const currentError = swiftCodeState.error ?? withdrawalCodeState.error ?? state.error;
+  const stageOneComplete = currentStage === "awaiting_swift_code" || currentStage === "authorized";
   const support = state.withdrawalSupport;
-  const supportMessage = support
+  const supportMessage = currentSupport
     ? withdrawalSupportMessage(text.supportMessageTemplate, {
-        reference: support.reference,
-        amount: money(minorToMajor(support.amountMinor, support.currency), support.currency, locale),
-        bankName: support.bankName,
-        accountName: support.accountName,
-        maskedAccountNumber: support.maskedAccountNumber,
+        reference: currentSupport.reference,
+        amount: money(minorToMajor(currentSupport.amountMinor, currentSupport.currency), currentSupport.currency, locale),
+        bankName: currentSupport.bankName,
+        accountName: currentSupport.accountName,
+        maskedAccountNumber: currentSupport.maskedAccountNumber,
       })
     : "";
 
   return (
     <Modal
       title={
-        state.success
+        authorizationCompleted
+          ? "Withdrawal authorization completed"
+          : currentStage === "awaiting_swift_code"
+            ? "SWIFT Authorization Required!"
+            : currentStage === "awaiting_withdrawal_code"
+              ? "Before You Proceed!"
+              : state.success
           ? text.received
           : reviewing
             ? text.reviewWithdrawal
@@ -412,15 +431,15 @@ function WithdrawalDialog({
       close={close}
       closeLabel={text.close}
     >
-      {pending ? (
+      {pending || verifyingWithdrawalCode || verifyingSwiftCode ? (
         <WorkflowPending label="Submitting withdrawal..." />
-      ) : state.success ? (
+      ) : authorizationCompleted && currentSupport && currentReference ? (
         <div className="workflow-success" role="status">
           <Check size={30} />
-          <h3>{text.received}</h3>
-          <p>{text.service}</p>
+          <h3>Withdrawal authorization completed</h3>
+          <p>Your withdrawal request is now awaiting administrator review and customer-service completion.</p>
           <small>
-            {text.reference}: {state.reference}
+            {text.reference}: {currentReference}
           </small>
           <div className="support-actions">
             <a
@@ -435,7 +454,7 @@ function WithdrawalDialog({
             {customerService.email && (
               <a
                 className="button secondary"
-                href={`mailto:${customerService.email}?subject=${encodeURIComponent(`Withdrawal ${state.reference}`)}&body=${encodeURIComponent(supportMessage)}`}
+                href={`mailto:${customerService.email}?subject=${encodeURIComponent(`Withdrawal ${currentReference}`)}&body=${encodeURIComponent(supportMessage)}`}
               >
                 <Mail size={17} />
                 Email
@@ -445,6 +464,69 @@ function WithdrawalDialog({
           <button className="button secondary" type="button" onClick={close}>
             {text.done}
           </button>
+        </div>
+      ) : currentStage === "awaiting_withdrawal_code" && currentRequestId ? (
+        <form action={verifyWithdrawalCode} className="review-form" aria-label="Withdrawal code verification">
+          <input type="hidden" name="requestId" value={currentRequestId} />
+          <h3>Before You Proceed!</h3>
+          <p>
+            Additional verification is required. To proceed with your withdrawal, please enter your withdrawal code issued by our Customer Service team.
+          </p>
+          <label className="workflow-field">
+            WITHDRAWAL CODE
+            <input
+              name="code"
+              value={withdrawalCode}
+              onChange={(event) => setWithdrawalCode(event.target.value)}
+              autoComplete="off"
+              placeholder="Enter withdrawal code"
+              required
+            />
+          </label>
+          <div className="modal-actions">
+            <button className="button primary" disabled={!withdrawalCode.trim()}>
+              Confirm Withdrawal Code
+            </button>
+          </div>
+        </form>
+      ) : currentStage === "awaiting_swift_code" && currentRequestId ? (
+        <form action={verifySwiftCode} className="review-form" aria-label="SWIFT authorization code verification">
+          <input type="hidden" name="requestId" value={currentRequestId} />
+          <div className="transfer-review-intro">
+            <span className="receipt-status">
+              <Check size={16} />
+              Initial verification succeeded
+            </span>
+          </div>
+          <h3>SWIFT Authorization Required!</h3>
+          <p>
+            Your initial verification has been completed. Please provide your SWIFT Authorization Code to continue with the withdrawal authorization process.
+          </p>
+          <label className="workflow-field">
+            SWIFT AUTHORIZATION CODE
+            <input
+              name="code"
+              value={swiftCode}
+              onChange={(event) => setSwiftCode(event.target.value)}
+              autoComplete="off"
+              placeholder="Enter SWIFT authorization code"
+              required
+            />
+          </label>
+          <div className="modal-actions">
+            <button className="button primary" disabled={!swiftCode.trim()}>
+              Verify SWIFT Code
+            </button>
+          </div>
+        </form>
+      ) : state.success ? (
+        <div className="workflow-success" role="status">
+          <Check size={30} />
+          <h3>{text.received}</h3>
+          <p>{text.service}</p>
+          <small>
+            {text.reference}: {state.reference}
+          </small>
         </div>
       ) : reviewing && account && destination ? (
         <>
@@ -475,6 +557,19 @@ function WithdrawalDialog({
             <input type="hidden" name="amount" value={amount} />
             <input type="hidden" name="currency" value={account.currency} />
             <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
+            <label className="workflow-field">
+              Transaction PIN
+              <input
+                name="pin"
+                type="password"
+                inputMode="numeric"
+                pattern="[0-9]{4}"
+                minLength={4}
+                maxLength={4}
+                autoComplete="off"
+                required
+              />
+            </label>
             <div className="modal-actions">
               <button
                 className="button secondary"
@@ -580,9 +675,14 @@ function WithdrawalDialog({
           </div>
         </>
       )}
-      {state.error && (
+      {currentError && (
         <p className="auth-message error" role="alert">
-          {localizeUserActionMessage(locale, state.error)}
+          {localizeUserActionMessage(locale, currentError)}
+        </p>
+      )}
+      {stageOneComplete && !authorizationCompleted && (
+        <p className="note">
+          Initial authorization succeeded. Awaiting SWIFT authorization code issuance by an authorized administrator.
         </p>
       )}
     </Modal>

@@ -5,7 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { authRateLimits } from "@/lib/db/schema";
 
-export type AuthRateLimitScope = "login" | "register" | "password_reset" | "admin_transfer" | "admin_transfer_verify" | "admin_message" | "transaction_pin" | "email_delivery";
+export type AuthRateLimitScope = "login" | "register" | "password_reset" | "admin_transfer" | "admin_transfer_verify" | "admin_message" | "admin_sensitive" | "transaction_pin" | "email_delivery" | "withdrawal_authorization";
 
 const limits: Record<AuthRateLimitScope, { attempts: number; windowMs: number }> = {
   login: { attempts: 10, windowMs: 15 * 60 * 1000 },
@@ -14,8 +14,10 @@ const limits: Record<AuthRateLimitScope, { attempts: number; windowMs: number }>
   admin_transfer: { attempts: 3, windowMs: 60 * 60 * 1000 },
   admin_transfer_verify: { attempts: 5, windowMs: 60 * 60 * 1000 },
   admin_message: { attempts: 10, windowMs: 60 * 60 * 1000 },
+  admin_sensitive: { attempts: 30, windowMs: 60 * 60 * 1000 },
   transaction_pin: { attempts: 5, windowMs: 15 * 60 * 1000 },
   email_delivery: { attempts: 90, windowMs: 24 * 60 * 60 * 1000 },
+  withdrawal_authorization: { attempts: 10, windowMs: 15 * 60 * 1000 },
 };
 
 const rateLimitKey = (scope: AuthRateLimitScope, identifier: string) => `${scope}:${createHash("sha256").update(identifier.trim().toLowerCase()).digest("hex")}`;

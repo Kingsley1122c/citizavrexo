@@ -2,7 +2,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
-vi.mock("@/lib/db/client", () => ({ db: {} }));
+const withdrawalRequestRow = {
+  id: "withdrawal-request-action-test",
+  authorizationStage: "awaiting_withdrawal_code",
+};
+vi.mock("@/lib/db/client", () => ({
+  db: {
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          get: vi.fn(() => withdrawalRequestRow),
+        })),
+      })),
+    })),
+  },
+}));
 vi.mock("@/lib/auth/authorization", () => ({
   requireUser: vi.fn(async () => ({
     id: "action-user",
@@ -29,7 +43,8 @@ vi.mock("@/lib/withdrawals/withdrawal-service", () => {
   return {
     WithdrawalError,
     cancelOwnedWithdrawalRequest: vi.fn(),
-    createWithdrawalRequest: vi.fn(() => "NVW-action-test"),
+    requestWithdrawalWithPin: vi.fn(() => "NVW-action-test"),
+    verifyWithdrawalAuthorizationCode: vi.fn(),
     getWithdrawalSupportDetailsForUser: vi.fn(() => ({
       reference: "NVW-action-test",
       amountMinor: 2550,
@@ -54,7 +69,7 @@ import { createBankDestinationAction, requestWithdrawalAction, saveProfileAction
 import { ProfileError, saveUserProfile } from "@/lib/users/profile-service";
 import { createBankDestination } from "@/lib/withdrawals/bank-destination-service";
 import {
-  createWithdrawalRequest,
+  requestWithdrawalWithPin,
   getWithdrawalSupportDetailsForUser,
   WithdrawalError,
 } from "@/lib/withdrawals/withdrawal-service";
@@ -118,10 +133,14 @@ describe("customer mutation actions", () => {
     formData.set("amount", "25.50");
     formData.set("currency", "USD");
     formData.set("idempotencyKey", "withdrawal-ui-action-test");
+    formData.set("pin", "2468");
 
-    await expect(requestWithdrawalAction({}, formData)).resolves.toEqual({
+    await expect(requestWithdrawalAction({}, formData)).resolves.toMatchObject({
       success: "Withdrawal Request Received",
       reference: "NVW-action-test",
+      withdrawalRequestId: "withdrawal-request-action-test",
+      authorizationStage: "awaiting_withdrawal_code",
+      authorizationCompleted: false,
       withdrawalSupport: {
         reference: "NVW-action-test",
         amountMinor: 2550,
@@ -131,7 +150,7 @@ describe("customer mutation actions", () => {
         maskedAccountNumber: "****6789",
       },
     });
-    expect(createWithdrawalRequest).toHaveBeenCalledWith({
+    expect(requestWithdrawalWithPin).toHaveBeenCalledWith({
       userId: "action-user",
       actorLabel: "action-user@example.test",
       accountId: "action-account",
@@ -139,6 +158,7 @@ describe("customer mutation actions", () => {
       amountMinor: 2550,
       currency: "USD",
       idempotencyKey: "withdrawal-ui-action-test",
+      pin: "2468",
     });
     expect(getWithdrawalSupportDetailsForUser).toHaveBeenCalledWith(
       "NVW-action-test",
@@ -173,13 +193,14 @@ describe("customer mutation actions", () => {
 
   it("reports and logs an existing pending withdrawal without exposing request data", async () => {
     const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    vi.mocked(createWithdrawalRequest).mockImplementationOnce(() => { throw new WithdrawalError("A withdrawal request is already pending for this account."); });
+    vi.mocked(requestWithdrawalWithPin).mockImplementationOnce(() => { throw new WithdrawalError("A withdrawal request is already pending for this account."); });
     const formData = new FormData();
     formData.set("accountId", "action-account");
     formData.set("destinationId", "action-destination");
     formData.set("amount", "1.00");
     formData.set("currency", "USD");
     formData.set("idempotencyKey", "withdrawal-ui-pending-test");
+    formData.set("pin", "2468");
 
     const result = await requestWithdrawalAction({}, formData);
 

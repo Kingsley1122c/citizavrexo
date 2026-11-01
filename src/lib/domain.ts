@@ -27,6 +27,9 @@ export type AdminRole = "super_admin" | "administrator" | "support_agent" | "aud
 export type CardRequestStatus = "pending" | "approved" | "rejected" | "cancelled";
 export type WithdrawalRequestStatus = "pending" | "completed" | "rejected" | "cancelled";
 export type CurrencyChangeRequestStatus = "pending" | "approved" | "rejected" | "cancelled";
+export type WithdrawalAuthorizationStage = "awaiting_withdrawal_code" | "awaiting_swift_code" | "authorized";
+export type WithdrawalAuthorizationCodeStage = "withdrawal_code" | "swift_code";
+export type WithdrawalAuthorizationCodeStatus = "issued" | "verified" | "revoked" | "expired";
 
 export interface User {
   id: string;
@@ -224,6 +227,9 @@ export interface WithdrawalRequest {
   amount: number;
   currency: Currency;
   status: WithdrawalRequestStatus;
+  authorizationStage: WithdrawalAuthorizationStage;
+  pinVerifiedAt?: string;
+  authorizationCompletedAt?: string;
   submittedAt: string;
   reviewedBy?: string;
   reviewedAt?: string;
@@ -238,6 +244,24 @@ export interface WithdrawalRequest {
   destinationBankName?: string;
   destinationAccountName?: string;
   destinationAccountNumber?: string;
+  withdrawalCodeStatus?: WithdrawalAuthorizationCodeStatus;
+  withdrawalCodeIssuedAt?: string;
+  withdrawalCodeExpiresAt?: string;
+  withdrawalCodeIssuedBy?: string;
+  swiftCodeStatus?: WithdrawalAuthorizationCodeStatus;
+  swiftCodeIssuedAt?: string;
+  swiftCodeExpiresAt?: string;
+  swiftCodeIssuedBy?: string;
+  authorizationHistory?: WithdrawalAuthorizationHistoryEntry[];
+}
+
+export interface WithdrawalAuthorizationHistoryEntry {
+  id: string;
+  stage: WithdrawalAuthorizationCodeStage;
+  event: "issued" | "verified" | "failed" | "blocked" | "expired" | "revoked" | "reissued";
+  actorLabel: string;
+  reason: string;
+  createdAt: string;
 }
 
 export interface TransferReceipt {

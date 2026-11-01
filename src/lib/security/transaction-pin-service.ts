@@ -11,19 +11,41 @@ const pinHashOptions = { memoryCost: 19456, timeCost: 2, parallelism: 1 };
 
 export class TransactionPinError extends Error {}
 
-const assertPin = (pin: string) => {
+export const assertTransactionPin = (pin: string) => {
   if (!pinPattern.test(pin)) throw new TransactionPinError("Enter an exactly 4-digit transaction PIN.");
 };
 
-const hashPin = async (pin: string) => (await import("@node-rs/argon2")).hash(pin, pinHashOptions);
+export const hashTransactionPin = async (pin: string) => {
+  assertTransactionPin(pin);
+  return (await import("@node-rs/argon2")).hash(pin, pinHashOptions);
+};
 const verifyPin = async (hash: string, pin: string) => (await import("@node-rs/argon2")).verify(hash, pin);
 
+export const requireConfiguredTransactionPin = (userId: string): void => {
+  const credential = db.select({ transactionPinHash: credentials.transactionPinHash }).from(credentials).where(eq(credentials.userId, userId)).get();
+  if (!credential?.transactionPinHash) throw new TransactionPinError("Set up a transaction PIN in Security before requesting withdrawals.");
+};
+
+export async function verifyTransactionPinForUser(input: { userId: string; pin: string; purpose: "transfer" | "withdrawal" }): Promise<void> {
+  assertTransactionPin(input.pin);
+  const credential = db.select({ transactionPinHash: credentials.transactionPinHash }).from(credentials).where(eq(credentials.userId, input.userId)).get();
+  if (!credential?.transactionPinHash) {
+    const setupMessage = input.purpose === "withdrawal"
+      ? "Set up a transaction PIN in Security before requesting withdrawals."
+      : "Set up a transaction PIN in Security before sending money.";
+    throw new TransactionPinError(setupMessage);
+  }
+  if (!consumeAuthRateLimit("transaction_pin", input.userId)) throw new TransactionPinError("Too many incorrect PIN attempts. Try again later.");
+  if (!(await verifyPin(credential.transactionPinHash, input.pin))) throw new TransactionPinError("The transaction PIN is incorrect.");
+  await clearAuthRateLimit("transaction_pin", input.userId);
+}
+
 export async function setUpTransactionPin(input: { userId: string; actorLabel: string; pin: string; confirmation: string }): Promise<void> {
-  assertPin(input.pin);
+  assertTransactionPin(input.pin);
   if (input.pin !== input.confirmation) throw new TransactionPinError("Transaction PINs do not match.");
   const credential = db.select({ transactionPinHash: credentials.transactionPinHash }).from(credentials).where(eq(credentials.userId, input.userId)).get();
   if (!credential || credential.transactionPinHash) throw new TransactionPinError("Transaction PIN setup is not available.");
-  const pinHash = await hashPin(input.pin);
+  const pinHash = await hashTransactionPin(input.pin);
   const now = new Date().toISOString();
   db.transaction((tx) => {
     const updated = tx.update(credentials).set({ transactionPinHash: pinHash }).where(and(eq(credentials.userId, input.userId), isNull(credentials.transactionPinHash))).run();
@@ -33,15 +55,15 @@ export async function setUpTransactionPin(input: { userId: string; actorLabel: s
 }
 
 export async function changeTransactionPin(input: { userId: string; actorLabel: string; currentPin: string; newPin: string; confirmation: string }): Promise<void> {
-  assertPin(input.currentPin);
-  assertPin(input.newPin);
+  assertTransactionPin(input.currentPin);
+  assertTransactionPin(input.newPin);
   if (input.newPin !== input.confirmation) throw new TransactionPinError("Transaction PINs do not match.");
   const credential = db.select({ transactionPinHash: credentials.transactionPinHash }).from(credentials).where(eq(credentials.userId, input.userId)).get();
   if (!credential?.transactionPinHash) throw new TransactionPinError("Set up a transaction PIN first.");
   if (!consumeAuthRateLimit("transaction_pin", input.userId)) throw new TransactionPinError("Too many incorrect PIN attempts. Try again later.");
   if (!(await verifyPin(credential.transactionPinHash, input.currentPin))) throw new TransactionPinError("The current transaction PIN is incorrect.");
   await clearAuthRateLimit("transaction_pin", input.userId);
-  const pinHash = await hashPin(input.newPin);
+  const pinHash = await hashTransactionPin(input.newPin);
   const now = new Date().toISOString();
   db.transaction((tx) => {
     tx.update(credentials).set({ transactionPinHash: pinHash }).where(eq(credentials.userId, input.userId)).run();
@@ -51,7 +73,7 @@ export async function changeTransactionPin(input: { userId: string; actorLabel: 
 }
 
 export async function authorizeTransferWithPin(input: { userId: string; quoteId: string; pin: string }, now = new Date()): Promise<string> {
-  assertPin(input.pin);
+  assertTransactionPin(input.pin);
   const timestamp = now.toISOString();
   const quote = db.select({ expiresAt: transferQuotes.expiresAt }).from(transferQuotes).where(and(eq(transferQuotes.id, input.quoteId), eq(transferQuotes.userId, input.userId), isNull(transferQuotes.consumedAt), gt(transferQuotes.expiresAt, timestamp))).get();
   if (!quote) throw new TransactionPinError("This transfer quote is invalid or expired. Review the transfer again.");
