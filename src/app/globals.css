@@ -95,8 +95,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 
 .brand-logo-link{text-decoration:none}
 .brand-logo{display:inline-flex;align-items:center;gap:10px;color:inherit}
-.brand-logo-wordmark{display:inline-flex;align-items:baseline;font-weight:700;letter-spacing:.2px;line-height:1}
-.brand-logo-wordmark strong{font-size:clamp(16px,1.2vw,20px)}
+.brand-logo-wordmark{display:inline-flex;align-items:baseline;font-weight:650;letter-spacing:2px;line-height:1}
+.brand-logo-wordmark strong{font-size:clamp(14px,1.1vw,18px);font-weight:650}
 .brand-logo[data-tone="light"] .brand-logo-wordmark{color:var(--brand-ivory)}
 .brand-logo[data-tone="dark"] .brand-logo-wordmark{color:var(--brand-navy)}
 .brand-logo .brand-logo-symbol{flex:0 0 auto;filter:drop-shadow(0 3px 9px rgba(9,28,51,.2))}

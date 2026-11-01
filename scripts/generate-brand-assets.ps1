@@ -1,63 +1,108 @@
 Add-Type -AssemblyName System.Drawing
 
+function New-RoundedRectanglePath {
+  param(
+    [single]$X,
+    [single]$Y,
+    [single]$Width,
+    [single]$Height,
+    [single]$Radius
+  )
+
+  $path = New-Object System.Drawing.Drawing2D.GraphicsPath
+  $diameter = $Radius * 2
+  $path.AddArc($X, $Y, $diameter, $diameter, 180, 90)
+  $path.AddArc($X + $Width - $diameter, $Y, $diameter, $diameter, 270, 90)
+  $path.AddArc($X + $Width - $diameter, $Y + $Height - $diameter, $diameter, $diameter, 0, 90)
+  $path.AddArc($X, $Y + $Height - $diameter, $diameter, $diameter, 90, 90)
+  $path.CloseFigure()
+  return $path
+}
+
+function Draw-CitizavrexoMark {
+  param(
+    [System.Drawing.Graphics]$Graphics,
+    [single]$X,
+    [single]$Y,
+    [single]$Size,
+    [bool]$WithTile = $true,
+    [bool]$DarkSurface = $true
+  )
+
+  $state = $Graphics.Save()
+  $Graphics.TranslateTransform($X, $Y)
+  $Graphics.ScaleTransform($Size / 64, $Size / 64)
+
+  $navyBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(9, 28, 51))
+  $ivoryBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(244, 248, 251))
+  $goldBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(216, 181, 106))
+  $tealPen = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(24, 198, 177), 3)
+  $tealPen.StartCap = [System.Drawing.Drawing2D.LineCap]::Square
+  $tealPen.EndCap = [System.Drawing.Drawing2D.LineCap]::Square
+
+  if ($WithTile) {
+    $tile = New-RoundedRectanglePath -X 0 -Y 0 -Width 64 -Height 64 -Radius 14
+    $Graphics.FillPath($navyBrush, $tile)
+    $tile.Dispose()
+  }
+
+  $markPath = New-Object System.Drawing.Drawing2D.GraphicsPath
+  $markPath.StartFigure()
+  $markPath.AddLine(51, 8, 25, 8)
+  $markPath.AddBezier(25, 8, 15.61, 8, 8, 15.61, 8, 25)
+  $markPath.AddLine(8, 25, 8, 39)
+  $markPath.AddBezier(8, 39, 8, 48.39, 15.61, 56, 25, 56)
+  $markPath.AddLine(25, 56, 51, 56)
+  $markPath.AddLine(51, 56, 43, 44)
+  $markPath.AddLine(43, 44, 26, 44)
+  $markPath.AddBezier(26, 44, 22.69, 44, 20, 41.31, 20, 38)
+  $markPath.AddLine(20, 38, 20, 26)
+  $markPath.AddBezier(20, 26, 20, 22.69, 22.69, 20, 26, 20)
+  $markPath.AddLine(26, 20, 43, 20)
+  $markPath.CloseFigure()
+  $Graphics.FillPath($(if ($DarkSurface -or $WithTile) { $ivoryBrush } else { $navyBrush }), $markPath)
+
+  $rail = New-Object System.Drawing.Drawing2D.GraphicsPath
+  $rail.AddLine(26, 15, 25, 15)
+  $rail.AddBezier(25, 15, 18.92, 15, 14, 19.92, 14, 26)
+  $rail.AddLine(14, 26, 14, 38)
+  $rail.AddBezier(14, 38, 14, 44.08, 18.92, 49, 25, 49)
+  $rail.AddLine(25, 49, 26, 49)
+  $Graphics.DrawPath($tealPen, $rail)
+
+  $Graphics.FillPolygon($goldBrush, [System.Drawing.PointF[]]@(
+    (New-Object System.Drawing.PointF(46, 8)),
+    (New-Object System.Drawing.PointF(51, 8)),
+    (New-Object System.Drawing.PointF(43, 20)),
+    (New-Object System.Drawing.PointF(38, 20))
+  ))
+  $Graphics.FillPolygon($goldBrush, [System.Drawing.PointF[]]@(
+    (New-Object System.Drawing.PointF(38, 44)),
+    (New-Object System.Drawing.PointF(43, 44)),
+    (New-Object System.Drawing.PointF(51, 56)),
+    (New-Object System.Drawing.PointF(46, 56))
+  ))
+
+  $markPath.Dispose(); $rail.Dispose(); $tealPen.Dispose()
+  $navyBrush.Dispose(); $ivoryBrush.Dispose(); $goldBrush.Dispose()
+  $Graphics.Restore($state)
+}
+
 function New-CitizavrexoBitmap {
   param(
     [int]$IconSize,
     [string]$OutputPath
   )
 
-  $bmp = New-Object System.Drawing.Bitmap($IconSize, $IconSize)
-  $g = [System.Drawing.Graphics]::FromImage($bmp)
-  $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-  $g.Clear([System.Drawing.Color]::FromArgb(9, 28, 51))
+  $bitmap = New-Object System.Drawing.Bitmap($IconSize, $IconSize)
+  $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+  $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+  $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+  $graphics.Clear([System.Drawing.Color]::Transparent)
+  Draw-CitizavrexoMark -Graphics $graphics -X 0 -Y 0 -Size $IconSize
+  $bitmap.Save($OutputPath, [System.Drawing.Imaging.ImageFormat]::Png)
 
-  $pad = [int]($IconSize * 0.08)
-  $stroke = [Math]::Max(2, [int]($IconSize * 0.06))
-  $radius = [Math]::Max(6, [int]($IconSize * 0.22))
-
-  $inner = [int]($IconSize - ($pad * 2))
-  $rect = New-Object System.Drawing.Rectangle -ArgumentList $pad, $pad, $inner, $inner
-  $path = New-Object System.Drawing.Drawing2D.GraphicsPath
-  $d = $radius * 2
-  $path.AddArc($rect.X, $rect.Y, $d, $d, 180, 90)
-  $path.AddArc($rect.Right - $d, $rect.Y, $d, $d, 270, 90)
-  $path.AddArc($rect.Right - $d, $rect.Bottom - $d, $d, $d, 0, 90)
-  $path.AddArc($rect.X, $rect.Bottom - $d, $d, $d, 90, 90)
-  $path.CloseFigure()
-
-  $borderPen = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(26, 50, 82), [Math]::Max(1, [int]($IconSize * 0.018)))
-  $g.DrawPath($borderPen, $path)
-
-  $teal = [System.Drawing.Color]::FromArgb(24, 198, 177)
-  $tealDark = [System.Drawing.Color]::FromArgb(15, 157, 150)
-  $gold = [System.Drawing.Color]::FromArgb(216, 181, 106)
-  $gradBrush = New-Object System.Drawing.Drawing2D.LinearGradientBrush((New-Object System.Drawing.Point(0, 0)), (New-Object System.Drawing.Point($IconSize, $IconSize)), $teal, $tealDark)
-
-  $curvePen = New-Object System.Drawing.Pen($gradBrush, $stroke)
-  $curvePen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
-  $curvePen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
-
-  $p1 = New-Object System.Drawing.PointF -ArgumentList ([single]($IconSize * 0.29)), ([single]($IconSize * 0.62))
-  $p2 = New-Object System.Drawing.PointF -ArgumentList ([single]($IconSize * 0.43)), ([single]($IconSize * 0.39))
-  $p3 = New-Object System.Drawing.PointF -ArgumentList ([single]($IconSize * 0.66)), ([single]($IconSize * 0.39))
-  $g.DrawBezier($curvePen, $p1, $p2, $p2, $p3)
-
-  $goldPen = New-Object System.Drawing.Pen($gold, [Math]::Max(2, [int]($IconSize * 0.038)))
-  $goldPen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
-  $goldPen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
-  $g.DrawLine($goldPen, ([single]($IconSize * 0.66)), ([single]($IconSize * 0.39)), ([single]($IconSize * 0.60)), ([single]($IconSize * 0.33)))
-  $g.DrawLine($goldPen, ([single]($IconSize * 0.66)), ([single]($IconSize * 0.39)), ([single]($IconSize * 0.60)), ([single]($IconSize * 0.45)))
-
-  $dotR = [Math]::Max(2, [int]($IconSize * 0.072))
-  $goldBrush = New-Object System.Drawing.SolidBrush($gold)
-  $tealBrush = New-Object System.Drawing.SolidBrush($teal)
-  $g.FillEllipse($goldBrush, ([single]($IconSize * 0.25 - $dotR)), ([single]($IconSize * 0.62 - $dotR)), ([single]($dotR * 2)), ([single]($dotR * 2)))
-  $g.FillEllipse($tealBrush, ([single]($IconSize * 0.68 - $dotR)), ([single]($IconSize * 0.62 - $dotR)), ([single]($dotR * 2)), ([single]($dotR * 2)))
-
-  $bmp.Save($OutputPath, [System.Drawing.Imaging.ImageFormat]::Png)
-
-  $curvePen.Dispose(); $goldPen.Dispose(); $goldBrush.Dispose(); $tealBrush.Dispose()
-  $borderPen.Dispose(); $gradBrush.Dispose(); $path.Dispose(); $g.Dispose(); $bmp.Dispose()
+  $graphics.Dispose(); $bitmap.Dispose()
 }
 
 $iconDir = "public/icons"
@@ -71,42 +116,33 @@ New-CitizavrexoBitmap -IconSize 180 -OutputPath (Join-Path $iconDir "apple-touch
 New-CitizavrexoBitmap -IconSize 192 -OutputPath (Join-Path $iconDir "android-chrome-192x192.png")
 New-CitizavrexoBitmap -IconSize 512 -OutputPath (Join-Path $iconDir "android-chrome-512x512.png")
 
-$ogDir = "public/brand"
 $og = New-Object System.Drawing.Bitmap(1200, 630)
-$g = [System.Drawing.Graphics]::FromImage($og)
-$g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-$bg = New-Object System.Drawing.Drawing2D.LinearGradientBrush((New-Object System.Drawing.Point(0, 0)), (New-Object System.Drawing.Point(1200, 630)), ([System.Drawing.Color]::FromArgb(7, 24, 44)), ([System.Drawing.Color]::FromArgb(12, 34, 61)))
-$g.FillRectangle($bg, 0, 0, 1200, 630)
+$graphics = [System.Drawing.Graphics]::FromImage($og)
+$graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+$graphics.Clear([System.Drawing.Color]::FromArgb(9, 28, 51))
 
-for ($i = 0; $i -lt 10; $i++) {
-  $alpha = 22 - ($i * 2)
-  $pen = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb([Math]::Max(4, $alpha), 24, 198, 177), [Math]::Max(1, 22 - ($i * 2)))
-  $g.DrawEllipse($pen, 770 + ($i * 12), 100 + ($i * 10), 380 - ($i * 24), 380 - ($i * 24))
-  $pen.Dispose()
-}
+$gridPen = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(25, 244, 248, 251), 1)
+for ($x = 760; $x -le 1120; $x += 60) { $graphics.DrawLine($gridPen, $x, 72, $x, 558) }
+for ($y = 78; $y -le 558; $y += 60) { $graphics.DrawLine($gridPen, 700, $y, 1140, $y) }
 
-New-CitizavrexoBitmap -IconSize 220 -OutputPath "$ogDir/.og-mark-temp.png"
-$mark = [System.Drawing.Image]::FromFile("$ogDir/.og-mark-temp.png")
-$g.DrawImage($mark, 92, 104, 148, 148)
-$mark.Dispose()
-Remove-Item "$ogDir/.og-mark-temp.png"
+Draw-CitizavrexoMark -Graphics $graphics -X 90 -Y 120 -Size 150 -WithTile $false -DarkSurface $true
 
-$fontTitle = New-Object System.Drawing.Font("Segoe UI", 82, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
-$fontSub = New-Object System.Drawing.Font("Segoe UI", 34, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Pixel)
-$fontTag = New-Object System.Drawing.Font("Segoe UI", 26, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
-$tealBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(24, 198, 177))
-$whiteBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(241, 248, 251))
+$fontTitle = New-Object System.Drawing.Font("Segoe UI", 70, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
+$fontSub = New-Object System.Drawing.Font("Segoe UI", 30, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Pixel)
+$fontTag = New-Object System.Drawing.Font("Segoe UI", 22, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
+$whiteBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(244, 248, 251))
 $mutedBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(167, 190, 205))
+$tealBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(24, 198, 177))
 $goldBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(216, 181, 106))
 
-$g.DrawString("CITIZAVREXO", $fontTitle, $whiteBrush, 274, 112)
-$g.DrawString("Premium digital financial workspace", $fontSub, $mutedBrush, 274, 228)
-$g.DrawString("SECURE. CLEAR. GLOBAL.", $fontTag, $tealBrush, 276, 296)
-$g.FillRectangle($goldBrush, 276, 344, 210, 8)
-$g.DrawString("citizavrexo.com", $fontSub, $whiteBrush, 92, 522)
+$graphics.DrawString("CITIZAVREXO", $fontTitle, $whiteBrush, 285, 132)
+$graphics.DrawString("Premium financial technology", $fontSub, $mutedBrush, 289, 229)
+$graphics.DrawString("TRUST. CLARITY. MOMENTUM.", $fontTag, $tealBrush, 291, 293)
+$graphics.FillRectangle($goldBrush, 291, 342, 170, 6)
+$graphics.DrawString("citizavrexo.com", $fontSub, $whiteBrush, 90, 520)
 
-$og.Save("$ogDir/og-citizavrexo.png", [System.Drawing.Imaging.ImageFormat]::Png)
+$og.Save("public/brand/og-citizavrexo.png", [System.Drawing.Imaging.ImageFormat]::Png)
 
 $fontTitle.Dispose(); $fontSub.Dispose(); $fontTag.Dispose()
-$tealBrush.Dispose(); $whiteBrush.Dispose(); $mutedBrush.Dispose(); $goldBrush.Dispose()
-$bg.Dispose(); $g.Dispose(); $og.Dispose()
+$whiteBrush.Dispose(); $mutedBrush.Dispose(); $tealBrush.Dispose(); $goldBrush.Dispose()
+$gridPen.Dispose(); $graphics.Dispose(); $og.Dispose()

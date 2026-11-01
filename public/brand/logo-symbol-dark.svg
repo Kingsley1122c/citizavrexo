@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">CITIZAVREXO architectural C symbol for dark backgrounds</title>
+  <desc id="desc">An ivory architectural C with an emerald inner rail and champagne terminal cuts.</desc>
+  <path fill="#F4F8FB" fill-rule="evenodd" d="M51 8H25C15.61 8 8 15.61 8 25v14c0 9.39 7.61 17 17 17h26l-8-12H26a6 6 0 0 1-6-6V26a6 6 0 0 1 6-6h17L51 8Z"/>
+  <path d="M26 15h-1c-6.08 0-11 4.92-11 11v12c0 6.08 4.92 11 11 11h1" fill="none" stroke="#18C6B1" stroke-width="3" stroke-linecap="square"/>
+  <path d="M46 8h5l-8 12h-5L46 8ZM38 44h5l8 12h-5l-8-12Z" fill="#D8B56A"/>
+</svg>

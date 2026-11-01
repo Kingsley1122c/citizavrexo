@@ -19,6 +19,7 @@ const sizeMap = {
 
 function BrandSymbol({ tone = "dark", size = "md" }: { tone?: BrandTone; size?: "sm" | "md" | "lg" }) {
   const px = sizeMap[size];
+  const primary = tone === "light" ? "var(--brand-ivory)" : "var(--brand-navy)";
   return (
     <svg
       className="brand-logo-symbol"
@@ -29,18 +30,9 @@ function BrandSymbol({ tone = "dark", size = "md" }: { tone?: BrandTone; size?: 
       focusable="false"
       data-tone={tone}
     >
-      <defs>
-        <linearGradient id="citizavrexo-accent" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="var(--brand-teal)" />
-          <stop offset="100%" stopColor="var(--brand-teal-strong)" />
-        </linearGradient>
-      </defs>
-      <rect x="3" y="3" width="58" height="58" rx="16" fill="var(--brand-navy)" />
-      <path d="M18 40c0-8.8 7.2-16 16-16h12" fill="none" stroke="url(#citizavrexo-accent)" strokeWidth="5.2" strokeLinecap="round" />
-      <path d="M46 24l-4.8-4.8M46 24l-4.8 4.8" fill="none" stroke="var(--brand-gold)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="21" cy="40" r="4.7" fill="var(--brand-gold)" />
-      <circle cx="47" cy="40" r="4.7" fill="var(--brand-teal)" />
-      <rect x="3" y="3" width="58" height="58" rx="16" fill="none" stroke="var(--brand-navy-border)" strokeWidth="1.2" />
+      <path fill={primary} fillRule="evenodd" d="M51 8H25C15.61 8 8 15.61 8 25v14c0 9.39 7.61 17 17 17h26l-8-12H26a6 6 0 0 1-6-6V26a6 6 0 0 1 6-6h17L51 8Z" />
+      <path d="M26 15h-1c-6.08 0-11 4.92-11 11v12c0 6.08 4.92 11 11 11h1" fill="none" stroke="var(--brand-teal)" strokeWidth="3" strokeLinecap="square" />
+      <path d="M46 8h5l-8 12h-5L46 8ZM38 44h5l8 12h-5l-8-12Z" fill="var(--brand-gold)" />
     </svg>
   );
 }
@@ -48,17 +40,17 @@ function BrandSymbol({ tone = "dark", size = "md" }: { tone?: BrandTone; size?: 
 export function BrandLogo({ tone = "dark", variant = "horizontal", size = "md", className = "", ariaLabel = "Citizavrexo" }: BrandLogoProps) {
   if (variant === "symbol") {
     return (
-      <span className={`brand-logo ${className}`.trim()} data-tone={tone} aria-label={ariaLabel}>
+      <span className={`brand-logo ${className}`.trim()} data-tone={tone} role="img" aria-label={ariaLabel}>
         <BrandSymbol tone={tone} size={size} />
       </span>
     );
   }
 
   return (
-    <span className={`brand-logo ${className}`.trim()} data-tone={tone} aria-label={ariaLabel}>
+    <span className={`brand-logo ${className}`.trim()} data-tone={tone} role="img" aria-label={ariaLabel}>
       <BrandSymbol tone={tone} size={size} />
       <span className="brand-logo-wordmark">
-        <strong>Citizavrexo</strong>
+        <strong>CITIZAVREXO</strong>
       </span>
     </span>
   );
