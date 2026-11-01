@@ -122,21 +122,20 @@ export async function requestPasswordReset(emailInput: string, transport?: Email
   const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
   if (user) {
     const now = new Date().toISOString();
-    const existingToken = await db.select().from(authenticationTokens).where(and(eq(authenticationTokens.userId, user.id), eq(authenticationTokens.purpose, "password_reset"), isNull(authenticationTokens.usedAt), gt(authenticationTokens.expiresAt, now))).limit(1).then((rows) => rows[0]);
-    let outboxId: string | undefined;
-    if (existingToken) {
-      outboxId = await db.select({ id: emailOutbox.id }).from(emailOutbox).where(eq(emailOutbox.eventReference, `RESET-${existingToken.id}`)).limit(1).then((rows) => rows[0]?.id);
-    } else {
-      const tokenId = randomUUID(); const reference = tokenId; outboxId = randomUUID();
-      const resetToken = deriveActionToken(tokenId, "password_reset");
-      db.transaction((tx) => {
-        tx.insert(recoveryRequests).values({ id: reference, userId: user.id, status: "submitted", method: "email", risk: "low", submittedAt: now }).run();
-        tx.insert(authenticationTokens).values({ id: tokenId, userId: user.id, purpose: "password_reset", tokenHash: hashActionToken(resetToken), expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(), createdAt: now }).run();
-        tx.insert(emailOutbox).values({ id: outboxId!, recipient: email, event: "account_recovery", eventReference: `RESET-${reference}`, payloadJson: JSON.stringify({ to: email, locale: user.locale, event: "account_recovery", eventReference: reference, displayName: user.name, summary: userUi(user.locale).email.actionSubjects.reset_password, action: { kind: "reset_password", tokenId } }), status: "pending", createdAt: now }).run();
-        tx.insert(auditEvents).values({ id: `AUD-${randomUUID()}`, actorId: user.id, actorLabel: user.email, action: "recovery.request", target: reference, result: "success", metadataJson: JSON.stringify({ method: "email" }), timestamp: now }).run();
-      });
-    }
-    if (outboxId) await deliverQueuedEmail(outboxId, deliveryTransport).catch(() => undefined);
+    const tokenId = randomUUID(); const reference = tokenId; const outboxId = randomUUID();
+    const resetToken = deriveActionToken(tokenId, "password_reset");
+    db.transaction((tx) => {
+      const oldTokens = tx.select({ id: authenticationTokens.id }).from(authenticationTokens).where(and(eq(authenticationTokens.userId, user.id), eq(authenticationTokens.purpose, "password_reset"), isNull(authenticationTokens.usedAt))).all();
+      if (oldTokens.length) {
+        tx.update(authenticationTokens).set({ usedAt: now }).where(inArray(authenticationTokens.id, oldTokens.map((token) => token.id))).run();
+        tx.delete(emailOutbox).where(and(inArray(emailOutbox.eventReference, oldTokens.map((token) => `RESET-${token.id}`)), ne(emailOutbox.status, "sent"))).run();
+      }
+      tx.insert(recoveryRequests).values({ id: reference, userId: user.id, status: "submitted", method: "email", risk: "low", submittedAt: now }).run();
+      tx.insert(authenticationTokens).values({ id: tokenId, userId: user.id, purpose: "password_reset", tokenHash: hashActionToken(resetToken), expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(), createdAt: now }).run();
+      tx.insert(emailOutbox).values({ id: outboxId, recipient: email, event: "account_recovery", eventReference: `RESET-${reference}`, payloadJson: JSON.stringify({ to: email, locale: user.locale, event: "account_recovery", eventReference: reference, displayName: user.name, summary: userUi(user.locale).email.actionSubjects.reset_password, action: { kind: "reset_password", tokenId } }), status: "pending", createdAt: now }).run();
+      tx.insert(auditEvents).values({ id: `AUD-${randomUUID()}`, actorId: user.id, actorLabel: user.email, action: "recovery.request", target: reference, result: "success", metadataJson: JSON.stringify({ method: "email" }), timestamp: now }).run();
+    });
+    await deliverQueuedEmail(outboxId, deliveryTransport).catch(() => undefined);
   }
   const minimumMs = 250 + randomBytes(1)[0] % 101;
   const remainingMs = minimumMs - (Date.now() - startedAt);

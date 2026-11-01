@@ -93,6 +93,7 @@ describe("email-backed authentication", () => {
     expect(database.select().from(sessions).where(eq(sessions.userId, user!.id)).all()).toHaveLength(0);
     expect(await getAuthenticatedUser()).toBeNull();
     expect(messages).toHaveLength(1);
+    expect(messages[0].text).toContain("https://citizavrexo.com/verify-email?token=");
 
     const { verifyRegisteredEmail } = await import("./auth-service");
     verifyRegisteredEmail(actionTokenFrom(messages[0]));
@@ -133,7 +134,7 @@ describe("email-backed authentication", () => {
     expect(database.select().from(users).where(eq(users.id, user.id)).get()).toMatchObject({ status: "active" });
   });
 
-  it("resets a password once, revokes sessions, and suppresses duplicate delivery", async () => {
+  it("rotates recovery links, resets a password once, and revokes sessions", async () => {
     const now = new Date().toISOString();
     const oldPassword = "OriginalPassword!2026";
     database.insert(users).values({ id: "reset-user", name: "Reset User", email: "reset@example.test", avatarInitials: "RU", status: "active", emailVerifiedAt: now, locale: "en", createdAt: now, updatedAt: now }).run();
@@ -143,9 +144,13 @@ describe("email-backed authentication", () => {
     const { messages, send, transport } = captureTransport();
 
     await requestPasswordReset("reset@example.test", transport);
+    const firstToken = actionTokenFrom(messages[0]);
     await requestPasswordReset("reset@example.test", transport);
-    expect(send).toHaveBeenCalledOnce();
-    const token = actionTokenFrom(messages[0]);
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(messages[1].text).toContain("https://citizavrexo.com/reset-password?token=");
+    const token = actionTokenFrom(messages[1]);
+    expect(token).not.toBe(firstToken);
+    await expect(resetPasswordWithToken(firstToken, "RejectedPassword!2026")).rejects.toThrow("invalid or expired");
     const newPassword = "ReplacementPassword!2026";
 
     await resetPasswordWithToken(token, newPassword);

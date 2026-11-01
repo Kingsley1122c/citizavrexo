@@ -7,6 +7,7 @@ import { isRecoveryCodePepperConfigured } from "@/lib/security/runtime-secrets";
 import type { EmailTransport } from "./email-service";
 
 const senderSchema = z.string().trim().min(3).max(320).regex(/^.+<[^<>\s]+@[^<>\s]+>$/);
+export const canonicalApplicationUrl = "https://citizavrexo.com";
 
 export class DailyEmailLimitError extends Error {}
 export class TransactionalEmailUnavailableError extends Error {}
@@ -22,6 +23,7 @@ export function requireTransactionalEmailConfiguration(): void {
 export function getApplicationUrl(): string {
   const value = new URL(process.env.APP_URL ?? "");
   if (process.env.NODE_ENV === "production" && value.protocol !== "https:") throw new Error("APP_URL must use HTTPS in production.");
+  if (process.env.NODE_ENV === "production") return canonicalApplicationUrl;
   return value.origin;
 }
 

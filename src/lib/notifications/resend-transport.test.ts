@@ -9,7 +9,7 @@ vi.mock("resend", () => ({
 }));
 vi.mock("@/lib/auth/rate-limit-service", () => ({ consumeAuthRateLimit }));
 
-import { DailyEmailLimitError, isTransactionalEmailConfigured, resendEmailTransport } from "./resend-transport";
+import { DailyEmailLimitError, getApplicationUrl, isTransactionalEmailConfigured, resendEmailTransport } from "./resend-transport";
 
 const message = {
   to: "recipient@example.test",
@@ -35,6 +35,23 @@ describe("Resend email transport", () => {
     expect(isTransactionalEmailConfigured()).toBe(true);
     vi.stubEnv("RECOVERY_CODE_PEPPER", "too-short");
     expect(isTransactionalEmailConfigured()).toBe(false);
+  });
+
+  it("uses the canonical Citizavrexo origin in production even when APP_URL is stale", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("APP_URL", "https://citizavrexo.onrender.com");
+    expect(getApplicationUrl()).toBe("https://citizavrexo.com");
+  });
+
+  it("uses the canonical production origin for administrator transfer links", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("APP_URL", "https://citizavrexo.onrender.com");
+    const transport = vi.spyOn(resendEmailTransport, "send").mockResolvedValueOnce();
+    const { deliverAdministratorTransferVerification } = await import("./administrator-transfer-delivery");
+
+    await deliverAdministratorTransferVerification({ recipient: "owner@example.test", verificationToken: "transfer-token", expiresAt: "2026-11-01T12:30:00.000Z" });
+
+    expect(transport).toHaveBeenCalledWith(expect.objectContaining({ text: expect.stringContaining("https://citizavrexo.com/admin-transfer?token=transfer-token") }));
   });
 
   it("uses the configured sender and provider idempotency key", async () => {
