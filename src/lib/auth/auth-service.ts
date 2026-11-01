@@ -1,4 +1,4 @@
-import "server-only";
+﻿import "server-only";
 
 import { randomBytes, randomUUID } from "node:crypto";
 import { and, eq, gt, isNull } from "drizzle-orm";
@@ -39,7 +39,7 @@ export async function registerUser(input: { name: string; email: string; passwor
     tx.insert(users).values({ id: userId, name, email, avatarInitials: initials(name), status: "active", emailVerifiedAt: now, locale: input.locale, displayCurrency: input.currency, createdAt: now, updatedAt: now }).run();
     tx.insert(credentials).values({ userId, passwordHash, transactionPinHash, passwordChangedAt: now }).run();
     tx.insert(accounts).values({ id: randomUUID(), userId, name: "Personal Account", number: accountNumber, type: "personal", currency: input.currency, balanceMinor: 0, status: "active", createdAt: now, updatedAt: now }).run();
-    persistUserEvent(tx, { userId, email, displayName: name, locale: input.locale, kind: "system", title: "Welcome to Nivora Core", message: "Your account is ready. Review your profile and security settings to finish setup.", emailEvent: "welcome", eventKey: `WELCOME-${userId}`, publicReference: `WELCOME-${userId}`, emailSummary: t.notifications.messageWelcomeReady, important: true, createdAt: now });
+    persistUserEvent(tx, { userId, email, displayName: name, locale: input.locale, kind: "system", title: "Welcome to CITIZAVREXO", message: "Your account is ready. Review your profile and security settings to finish setup.", emailEvent: "welcome", eventKey: `WELCOME-${userId}`, publicReference: `WELCOME-${userId}`, emailSummary: t.notifications.messageWelcomeReady, important: true, createdAt: now });
     tx.insert(auditEvents).values({ id: `AUD-${randomUUID()}`, actorId: userId, actorLabel: email, action: "user.register", target: userId, result: "success", metadataJson: JSON.stringify({ accountCurrency: input.currency, emailVerified: true, transactionPinConfigured: true }), timestamp: now }).run();
   }, { behavior: "immediate" });
   await createSession(userId, false, request);
@@ -58,7 +58,7 @@ export function verifyRegisteredEmail(verificationToken: string, now = new Date(
     const activated = tx.update(users).set({ status: "active", emailVerifiedAt: timestamp, updatedAt: timestamp }).where(and(eq(users.id, token.userId), eq(users.status, "pending"))).run();
     if (activated.changes !== 1) throw new Error("Verification link is invalid or expired.");
     const t = userUi(user.locale);
-    persistUserEvent(tx, { userId: user.id, email: user.email, displayName: user.name, locale: user.locale, kind: "system", title: "Welcome to Nivora Core", message: "Your account is verified and ready. Review your profile and security settings to finish setup.", emailEvent: "welcome", eventKey: `WELCOME-${user.id}`, publicReference: `WELCOME-${user.id}`, emailSummary: t.notifications.messageWelcomeReady, important: true, createdAt: timestamp });
+    persistUserEvent(tx, { userId: user.id, email: user.email, displayName: user.name, locale: user.locale, kind: "system", title: "Welcome to CITIZAVREXO", message: "Your account is verified and ready. Review your profile and security settings to finish setup.", emailEvent: "welcome", eventKey: `WELCOME-${user.id}`, publicReference: `WELCOME-${user.id}`, emailSummary: t.notifications.messageWelcomeReady, important: true, createdAt: timestamp });
     tx.insert(auditEvents).values({ id: `AUD-${randomUUID()}`, actorId: token.userId, actorLabel: "verified-email", action: "email.verify", target: token.userId, result: "success", metadataJson: "{}", timestamp }).run();
   });
 }

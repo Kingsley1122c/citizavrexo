@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import {
@@ -20,6 +20,7 @@ import {
 } from "@/lib/i18n/config";
 import { localizeAuthStateMessage, userUi } from "@/lib/i18n/user-ui";
 import { CurrencySelector } from "@/components/currency-selector";
+import { BrandLogo } from "@/components/brand-logo";
 
 type AuthAction = (state: AuthState, formData: FormData) => Promise<AuthState>;
 
@@ -41,7 +42,7 @@ export function AuthPanel({
     let cancelled = false;
     queueMicrotask(() => {
       if (cancelled) return;
-      const stored = localStorage.getItem("nivora-locale");
+      const stored = localStorage.getItem("Citizavrexo-locale");
       localeHydrated.current = true;
       setLocale(stored ? resolveSupportedLocale(stored) : resolveSupportedLocale(navigator.language));
     });
@@ -49,7 +50,7 @@ export function AuthPanel({
   }, []);
   useEffect(() => {
     if (!localeHydrated.current) return;
-    localStorage.setItem("nivora-locale", locale);
+    localStorage.setItem("Citizavrexo-locale", locale);
     document.documentElement.lang = locale;
   }, [locale]);
   const t = userUi(locale);
@@ -61,14 +62,7 @@ export function AuthPanel({
   return (
     <main className="auth-page">
       <section className="auth-brand">
-        <div className="brand">
-          <span className="brand-mark">
-            <i />
-          </span>
-          <span>
-            Nivora <b>Core</b>
-          </span>
-        </div>
+        <div className="brand"><BrandLogo tone="light"/></div>
         <div>
           <span className="eyebrow">{t.auth.marketingEyebrow}</span>
           <h1>
@@ -224,7 +218,7 @@ export function AuthPanel({
           <div className="auth-switch">
             {mode === "login" ? (
               <>
-                {t.auth.newToNivora} <Link href="/register">{t.auth.createAccount}</Link>
+                {t.auth.newToCitizavrexo} <Link href="/register">{t.auth.createAccount}</Link>
               </>
             ) : (
               <>
@@ -244,3 +238,4 @@ export function AuthPanel({
     </main>
   );
 }
+

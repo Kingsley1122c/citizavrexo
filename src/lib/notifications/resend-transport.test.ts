@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+﻿import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const send = vi.hoisted(() => vi.fn());
 const consumeAuthRateLimit = vi.hoisted(() => vi.fn());
@@ -13,7 +13,7 @@ import { DailyEmailLimitError, resendEmailTransport } from "./resend-transport";
 
 const message = {
   to: "recipient@example.test",
-  subject: "Nivora Core test",
+  subject: "CITIZAVREXO test",
   text: "Safe transactional content.",
   idempotencyKey: "outbox/test-message",
 };
@@ -21,7 +21,7 @@ const message = {
 describe("Resend email transport", () => {
   beforeEach(() => {
     vi.stubEnv("RESEND_API_KEY", "test-resend-key");
-    vi.stubEnv("EMAIL_FROM", "Nivora Core <no-reply@nivoracore.com>");
+    vi.stubEnv("EMAIL_FROM", "CITIZAVREXO <no-reply@citizavrexo.com>");
     send.mockReset();
     consumeAuthRateLimit.mockReset();
     consumeAuthRateLimit.mockReturnValue(true);
@@ -34,7 +34,7 @@ describe("Resend email transport", () => {
     await resendEmailTransport.send(message);
 
     expect(send).toHaveBeenCalledWith(
-      expect.objectContaining({ from: "Nivora Core <no-reply@nivoracore.com>", to: message.to, subject: message.subject, text: message.text }),
+      expect.objectContaining({ from: "CITIZAVREXO <no-reply@citizavrexo.com>", to: message.to, subject: message.subject, text: message.text }),
       { idempotencyKey: message.idempotencyKey },
     );
     expect(consumeAuthRateLimit).toHaveBeenCalledWith("email_delivery", "global");
@@ -55,3 +55,4 @@ describe("Resend email transport", () => {
     expect((failure as Error).message).toBe("Transactional email provider rejected the message.");
   });
 });
+

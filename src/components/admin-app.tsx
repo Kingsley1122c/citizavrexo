@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -18,6 +18,7 @@ import type { Account, AdminMessage, AdminRole, AuditEvent, CardRequest, Currenc
 import type { Permission } from "@/lib/auth/permissions";
 import { formatCurrencyAmount } from "@/lib/currency";
 import { AdminMessagePanel } from "@/components/admin-message-panel";
+import { BrandLogo } from "@/components/brand-logo";
 
 type AdminNotification = { id: string; userId: string; kind: string; title: string; message: string; createdAt: string; read: boolean; important: boolean; eventReference?: string };
 type ReviewProfile = UserProfile & { userId: string; userName: string; userEmail: string; updatedAt: string };
@@ -67,13 +68,13 @@ export function AdminApp({ data, identity }: { data: Data; identity: Identity })
   const [themeReady, setThemeReady] = useState(false);
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
-      const stored = localStorage.getItem("nivora-theme") as "light" | "dark" | null;
+      const stored = localStorage.getItem("Citizavrexo-theme") as "light" | "dark" | null;
       setTheme(stored ?? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
       setThemeReady(true);
     });
     return () => cancelAnimationFrame(frame);
   }, []);
-  useEffect(() => { if (themeReady) { document.documentElement.dataset.theme = theme; localStorage.setItem("nivora-theme", theme); } }, [theme, themeReady]);
+  useEffect(() => { if (themeReady) { document.documentElement.dataset.theme = theme; localStorage.setItem("Citizavrexo-theme", theme); } }, [theme, themeReady]);
   const availableNav = nav.filter((item) => identity.permissions.includes(item.permission));
   const initials = identity.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
 
@@ -104,7 +105,7 @@ export function AdminApp({ data, identity }: { data: Data; identity: Identity })
 }
 
 function Brand() {
-  return <div className="brand"><span className="brand-mark"><i/></span><span>Nivora <b>Core</b></span></div>;
+  return <div className="brand"><BrandLogo tone="light"/></div>;
 }
 
 function Dashboard({ data }: { data: Data }) {
@@ -158,7 +159,7 @@ function RecordsView({ view, data, identity, query, setQuery, status, setStatus 
   if (view === "Reports") return <InformationalView title="Reports" text={`Current records: ${data.users.length} users, ${data.accounts.length} accounts, and ${data.transactions.length} transactions. Use the relevant record view to export its current filtered dataset.`}/>;
   if (view === "Settings") return <AdministratorTransferPanel/>;
 
-  return <><div className="heading"><div><span className="eyebrow">READ-ONLY RECORDS</span><h1>{view}</h1><p>Search and filter the database records available to your role.</p></div>{exportConfig && <button className="button secondary" onClick={() => downloadCsv(`nivora-${view.toLowerCase().replaceAll(" ", "-")}.csv`, [...exportConfig[0]], [...exportConfig[1]])}><Download size={16}/>Export CSV</button>}</div><section className="panel table-panel"><div className="filters"><label className="search"><Search size={16}/><input value={query} onChange={(event) => setQuery(event.target.value)} aria-label={`Search ${view}`} placeholder={`Search ${view.toLowerCase()}`}/></label>{statuses.length > 0 && <label className="select"><select value={status} onChange={(event) => setStatus(event.target.value)} aria-label={`Filter ${view} by status`}><option value="all">All statuses</option>{statuses.map((item) => <option key={item}>{item}</option>)}</select><ChevronDown size={14}/></label>}</div>{table}</section></>;
+  return <><div className="heading"><div><span className="eyebrow">READ-ONLY RECORDS</span><h1>{view}</h1><p>Search and filter the database records available to your role.</p></div>{exportConfig && <button className="button secondary" onClick={() => downloadCsv(`Citizavrexo-${view.toLowerCase().replaceAll(" ", "-")}.csv`, [...exportConfig[0]], [...exportConfig[1]])}><Download size={16}/>Export CSV</button>}</div><section className="panel table-panel"><div className="filters"><label className="search"><Search size={16}/><input value={query} onChange={(event) => setQuery(event.target.value)} aria-label={`Search ${view}`} placeholder={`Search ${view.toLowerCase()}`}/></label>{statuses.length > 0 && <label className="select"><select value={status} onChange={(event) => setStatus(event.target.value)} aria-label={`Filter ${view} by status`}><option value="all">All statuses</option>{statuses.map((item) => <option key={item}>{item}</option>)}</select><ChevronDown size={14}/></label>}</div>{table}</section></>;
 }
 
 function InformationalView({ title, text }: { title: string; text: string }) { return <><div className="heading"><div><span className="eyebrow">READ-ONLY</span><h1>{title}</h1></div></div><section className="panel admin-placeholder"><ShieldCheck size={34}/><h2>{title}</h2><p>{text}</p></section></>; }
@@ -184,3 +185,4 @@ function TransactionRows({ rows }: { rows: Transaction[] }) { return rows.length
 function NotificationRows({ rows }: { rows: AdminNotification[] }) { return rows.length ? <div className="data-table"><div className="table-row table-head"><span>Notification</span><span>User</span><span>Kind</span><span>State</span><span>Created</span></div>{rows.map((r) => <div className="table-row" key={r.id}><span><b>{r.title}</b><small>{r.message}</small></span><span>{r.userId}</span><span>{r.kind}</span><span className={`status ${r.read ? "" : "status-pending"}`}>{r.read ? "read" : "unread"}</span><span>{dateTime(r.createdAt)}</span></div>)}</div> : <Empty/>; }
 function RecoveryRows({ rows }: { rows: RecoveryRequest[] }) { return rows.length ? <div className="data-table"><div className="table-row table-head"><span>Request</span><span>User</span><span>Method</span><span>Risk</span><span>Status</span></div>{rows.map((r) => <div className="table-row" key={r.id}><span><b>{r.id}</b><small>{dateTime(r.submittedAt)}</small></span><span>{r.userId}</span><span>{r.method}</span><span className={`status status-${r.risk}`}>{r.risk}</span><span className={`status status-${r.status}`}>{r.status}</span></div>)}</div> : <Empty/>; }
 function AuditRows({ rows }: { rows: AuditEvent[] }) { return rows.length ? <div className="data-table"><div className="table-row table-head"><span>Action</span><span>Actor</span><span>Target</span><span>Result</span><span>Timestamp</span></div>{rows.map((r) => <div className="table-row" key={r.id}><span><b>{r.action}</b><small>{r.id}</small></span><span>{r.actor}</span><span>{r.target}</span><span className={`status status-${r.result}`}>{r.result}</span><span>{dateTime(r.timestamp)}</span></div>)}</div> : <Empty/>; }
+

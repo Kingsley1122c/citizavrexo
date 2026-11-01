@@ -1,4 +1,4 @@
-import type { Notification, NotificationKind, TransactionType } from "@/lib/domain";
+﻿import type { Notification, NotificationKind, TransactionType } from "@/lib/domain";
 import type { Locale } from "@/lib/i18n/config";
 import { getUserUiCatalog } from "@/lib/i18n/locales/user-ui";
 
@@ -109,7 +109,7 @@ export function localizeUserActionMessage(locale: Locale, message?: string): str
     "Check the card request details and try again.": t.messages.cardRequestInvalid,
     "The card request could not be submitted.": t.messages.cardRequestFailed,
     "Your card request is pending approval.": t.messages.cardRequestPending,
-    "Enter a valid Nivora account number.": t.messages.recipientInvalid,
+    "Enter a valid Citizavrexo account number.": t.messages.recipientInvalid,
     "The recipient could not be verified.": t.messages.recipientLookupFailed,
     "Check the transfer details and enter a valid amount.": t.messages.transferInvalid,
     "The transfer could not be completed.": t.messages.transferFailed,
@@ -159,7 +159,7 @@ export function localizeNotification(locale: Locale, notification: Notification)
     "money added to your account": t.notifications.titleMoneyAdded,
     "account suspended": t.notifications.titleAccountSuspended,
     "account restored": t.notifications.titleAccountRestored,
-    "welcome to nivora core": t.notifications.titleWelcome,
+    "welcome to citizavrexo core": t.notifications.titleWelcome,
     "physical card request submitted": t.notifications.titleCardRequestSubmitted,
     "physical card request approved": t.notifications.titleCardRequestApproved,
     "physical card request rejected": t.notifications.titleCardRequestRejected,
@@ -178,18 +178,18 @@ export function localizeNotification(locale: Locale, notification: Notification)
   let message = notification.message;
   if (lowerTitle === "money added to your account") {
     const amount = notification.message.match(/^\$[\d,]+\.\d{2}/)?.[0];
-    message = `${amount ? `${amount} · ` : ""}${t.notifications.titleMoneyAdded}. ${t.email.reference}: ${notification.eventReference}.`;
+    message = `${amount ? `${amount} ┬╖ ` : ""}${t.notifications.titleMoneyAdded}. ${t.email.reference}: ${notification.eventReference}.`;
   } else if (lowerTitle === "account suspended" || lowerTitle === "account restored") {
     message = title;
   } else if (lowerTitle === "account credited" || lowerTitle === "account debited") {
     message = title;
   } else if (notification.message === "Your account is verified and ready. Review your profile and security settings to finish setup.") {
     message = t.notifications.messageWelcomeReady;
-  } else if (notification.message === "Please contact Nivora Core Customer Service to complete this transaction.") {
+  } else if (notification.message === "Please contact Citizavrexo Customer Service to complete this transaction.") {
     message = t.notifications.messageWithdrawalService;
-  } else if (notification.message === "Customer Service marked your withdrawal request as completed. No balance was changed by Nivora Core.") {
+  } else if (notification.message === "Customer Service marked your withdrawal request as completed. No balance was changed by Citizavrexo.") {
     message = t.notifications.messageWithdrawalCompleted;
-  } else if (notification.message === "Your withdrawal request was rejected. Open Nivora Core to review its status.") {
+  } else if (notification.message === "Your withdrawal request was rejected. Open Citizavrexo to review its status.") {
     message = t.notifications.messageWithdrawalRejected;
   } else if (notification.message === "Your physical card request is pending review.") {
     message = t.notifications.messageCardPending;
@@ -204,7 +204,7 @@ export function localizeNotification(locale: Locale, notification: Notification)
   } else if (lowerMessage.startsWith("you received a transfer from ")) {
     message = `${t.notifications.messageTransferReceivedPrefix} ${notification.message.slice("You received a transfer from ".length)}`;
   } else if (/^\$[\d,]+\.\d{2} was received from /i.test(notification.message)) {
-    message = `${t.notifications.messageTransferReceivedPrefix} ${notification.message.replace(/ was received from /i, " · ")}`;
+    message = `${t.notifications.messageTransferReceivedPrefix} ${notification.message.replace(/ was received from /i, " ┬╖ ")}`;
   }
 
   return {
@@ -212,3 +212,4 @@ export function localizeNotification(locale: Locale, notification: Notification)
     message,
   };
 }
+

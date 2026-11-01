@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import { resolve } from "node:path";
 import type { Currency } from "@/lib/currency";
 
@@ -8,7 +8,7 @@ const pairs = [
 ] as const satisfies readonly (readonly [Currency, Currency])[];
 const currencyOrder = ["USD", "KRW", "TWD", "JPY", "HKD", "SGD", "CNY", "THB", "VND", "IDR", "MYR", "INR", "PHP", "GBP", "EUR", "KWD"] as const;
 const databasePath = process.env.DATABASE_URL?.replace(/^file:/, "");
-const enabled = process.env.NODE_ENV !== "production" && !process.env.RENDER && process.env.QA_FIXTURE_MODE === "local-only" && process.env.LIVE_TRANSFER_GATE === "local-only" && databasePath !== undefined && resolve(databasePath) === resolve("data/nivora-next-gate.db") && process.env.APP_URL === "http://localhost:3011" && process.env.EXCHANGE_RATE_PROVIDER === "open_exchange_rates" && Boolean(process.env.OPEN_EXCHANGE_RATES_APP_ID);
+const enabled = process.env.NODE_ENV !== "production" && !process.env.RENDER && process.env.QA_FIXTURE_MODE === "local-only" && process.env.LIVE_TRANSFER_GATE === "local-only" && databasePath !== undefined && resolve(databasePath) === resolve("data/Citizavrexo-next-gate.db") && process.env.APP_URL === "http://localhost:3011" && process.env.EXCHANGE_RATE_PROVIDER === "open_exchange_rates" && Boolean(process.env.OPEN_EXCHANGE_RATES_APP_ID);
 
 describe.skipIf(!enabled)("live cross-currency transfer gate", () => {
   it("executes six quoted directions atomically and serves immutable persisted receipts", async () => {

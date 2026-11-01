@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, rmSync } from "node:fs";
+﻿import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import Database from "better-sqlite3";
@@ -19,7 +19,7 @@ vi.mock("next/headers", () => ({
   })),
 }));
 
-const directory = join(tmpdir(), `nivora-${process.pid}`);
+const directory = join(tmpdir(), `Citizavrexo-${process.pid}`);
 const databasePath = join(directory, "integration.db");
 let sqlite: Database.Database;
 let database: ReturnType<typeof drizzle>;
@@ -439,7 +439,7 @@ describe("physical card requests", () => {
   });
 });
 
-describe("Nivora-to-Nivora transfers", () => {
+describe("Citizavrexo-to-Citizavrexo transfers", () => {
   beforeAll(() => {
     const now = new Date().toISOString();
     database.insert(users).values([
@@ -718,9 +718,9 @@ describe("customer-service withdrawal requests", () => {
   });
 
   it("uses the official LINE URL and preserves only valid configured email support", async () => {
-    vi.stubEnv("CUSTOMER_SERVICE_EMAIL", "support@nivoracore.com");
+    vi.stubEnv("CUSTOMER_SERVICE_EMAIL", "support@citizavrexo.com");
     const { getCustomerServiceContact } = await import("./customer-service");
-    expect(getCustomerServiceContact()).toEqual({ lineUrl: "https://line.me/ti/p/wfRRjNqPzw", email: "support@nivoracore.com" });
+    expect(getCustomerServiceContact()).toEqual({ lineUrl: "https://line.me/ti/p/wfRRjNqPzw", email: "support@citizavrexo.com" });
     vi.stubEnv("CUSTOMER_SERVICE_EMAIL", "invalid-email");
     expect(getCustomerServiceContact()).toEqual({ lineUrl: "https://line.me/ti/p/wfRRjNqPzw", email: undefined });
   });
@@ -1221,7 +1221,7 @@ describe("administrator customer messaging", () => {
   });
 
   it("sends to the database-owned recipient once and records delivery history and audit", async () => {
-    vi.stubEnv("APP_URL", "https://nivoracore.com");
+    vi.stubEnv("APP_URL", "https://citizavrexo.com");
     const { sendAdminMessage } = await import("./admin/admin-message-service");
     let delivered: { to: string; subject: string; text: string; html?: string; idempotencyKey: string } | undefined;
     const send = vi.fn(async (message: { to: string; subject: string; text: string; html?: string; idempotencyKey: string }) => { delivered = message; });
@@ -1234,9 +1234,9 @@ describe("administrator customer messaging", () => {
     expect(send).toHaveBeenCalledOnce();
     expect(send).toHaveBeenCalledWith(expect.objectContaining({
       to: "message-customer@example.test",
-      subject: "Nivora Core · Account update",
-      text: expect.stringContaining("https://nivoracore.com/login?returnTo=/app"),
-      html: expect.stringMatching(/Banking made beautifully simple\.[\s\S]*Open Nivora Core/),
+      subject: "CITIZAVREXO · Account update",
+      text: expect.stringContaining("https://citizavrexo.com/login?returnTo=/app"),
+      html: expect.stringMatching(/Banking made beautifully simple\.[\s\S]*Open CITIZAVREXO/),
     }));
     const deliveredHtml = delivered!.html!;
     expect(deliveredHtml).toContain("Your &lt;account&gt; review is complete.");
@@ -1257,7 +1257,7 @@ describe("administrator customer messaging", () => {
   });
 
   it("records a failed delivery without exposing provider details", async () => {
-    vi.stubEnv("APP_URL", "https://nivoracore.com");
+    vi.stubEnv("APP_URL", "https://citizavrexo.com");
     const { sendAdminMessage } = await import("./admin/admin-message-service");
     const send = vi.fn(async () => { throw new Error("provider-secret-detail"); });
     await expect(sendAdminMessage({ actorId: "message-admin", actorLabel: "message-admin@example.test", actorRole: "administrator", recipientUserId: "message-customer", subject: "Delivery test", message: "This message should report a safe failure.", idempotencyKey: "admin-message-failure-0001" }, { send })).rejects.toThrow("Email delivery failed");

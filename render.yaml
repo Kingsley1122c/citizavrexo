@@ -1,6 +1,6 @@
-services:
+﻿services:
   - type: web
-    name: nivora-core
+    name: Citizavrexo-core
     runtime: node
     plan: starter
     region: oregon
@@ -13,15 +13,15 @@ services:
       - key: NODE_VERSION
         value: 22.22.0
       - key: DATABASE_URL
-        value: file:/var/data/nivora.db
+        value: file:/var/data/Citizavrexo.db
       - key: RECOVERY_CODE_PEPPER
         sync: false
       - key: RESEND_API_KEY
         sync: false
       - key: EMAIL_FROM
-        value: Nivora Core <no-reply@nivoracore.com>
+        value: CITIZAVREXO <no-reply@citizavrexo.com>
       - key: APP_URL
-        value: https://nivoracore.com
+        value: https://citizavrexo.com
       - key: PROFILE_IMAGE_DIR
         value: /var/data/profile-images
       - key: CUSTOMER_SERVICE_EMAIL
@@ -35,6 +35,6 @@ services:
       - key: EXCHANGE_RATE_MAX_AGE_SECONDS
         value: 21600
     disk:
-      name: nivora-data
+      name: Citizavrexo-data
       mountPath: /var/data
       sizeGB: 1

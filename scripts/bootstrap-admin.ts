@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+﻿import { randomUUID } from "node:crypto";
 import { hash } from "@node-rs/argon2";
 import Database from "better-sqlite3";
 import { eq, isNotNull } from "drizzle-orm";
@@ -6,7 +6,7 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { z } from "zod";
 import { auditEvents, credentials, users } from "../src/lib/db/schema";
 
-const sqlite = new Database(process.env.DATABASE_URL?.replace(/^file:/, "") ?? "./data/nivora.db");
+const sqlite = new Database(process.env.DATABASE_URL?.replace(/^file:/, "") ?? "./data/Citizavrexo.db");
 sqlite.pragma("foreign_keys = ON");
 const database = drizzle(sqlite);
 
@@ -48,3 +48,4 @@ bootstrapAdmin().catch((error: unknown) => {
   console.error(error instanceof Error ? error.message : "Administrator bootstrap failed.");
   process.exitCode = 1;
 });
+

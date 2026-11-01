@@ -1,8 +1,8 @@
-# Production backup and restore
+﻿# Production backup and restore
 
 ## Scope
 
-Nivora Core uses one SQLite database at `/var/data/nivora.db` on a Render persistent disk. The disk keeps data across deploys. Render captures a disk snapshot every 24 hours and retains snapshots for seven days. Those snapshots share the Render failure and account boundary and are not an independent off-site backup.
+CITIZAVREXO uses one SQLite database at `/var/data/Citizavrexo.db` on a Render persistent disk. The disk keeps data across deploys. Render captures a disk snapshot every 24 hours and retains snapshots for seven days. Those snapshots share the Render failure and account boundary and are not an independent off-site backup.
 
 The independent backup target should be a private Cloudflare R2 bucket in an account controlled by the platform owner. Backblaze B2 is a suitable alternative. The database is encrypted locally before upload, so the storage provider never receives plaintext application data.
 
@@ -28,7 +28,7 @@ The command uses `better-sqlite3`'s online backup API rather than copying the li
 Run from a Render shell with `BACKUP_ENCRYPTION_KEY` supplied as a secret:
 
 ```bash
-npm run db:backup -- /tmp/nivora-YYYYMMDDTHHMMSSZ.nvbackup
+npm run db:backup -- /tmp/Citizavrexo-YYYYMMDDTHHMMSSZ.nvbackup
 ```
 
 Upload the resulting `.nvbackup` file to the private object-storage bucket over HTTPS, verify the remote object size/checksum, and delete the local `/tmp` artifact. Do not place independent backups on `/var/data`; loss of the Render disk would remove both copies.
@@ -42,9 +42,9 @@ Download one encrypted object into a disposable, access-controlled environment. 
 ```bash
 export BACKUP_ENCRYPTION_KEY='<retrieve from the secrets manager>'
 npm ci
-npm run db:backup:verify -- ./restore-drill/nivora-backup.nvbackup
-npm run db:restore -- ./restore-drill/nivora-backup.nvbackup ./restore-drill/nivora-restored.db
-DATABASE_URL=file:./restore-drill/nivora-restored.db npm run db:migrate
+npm run db:backup:verify -- ./restore-drill/Citizavrexo-backup.nvbackup
+npm run db:restore -- ./restore-drill/Citizavrexo-backup.nvbackup ./restore-drill/Citizavrexo-restored.db
+DATABASE_URL=file:./restore-drill/Citizavrexo-restored.db npm run db:migrate
 ```
 
 The verification command decrypts only into operating-system temporary storage, runs `PRAGMA integrity_check` and `PRAGMA foreign_key_check`, checks the expected schema, confirms an active administrator and audit history exist, confirms core application data exists, and then removes the plaintext temporary database. The restore command refuses to overwrite any existing database and validates the restored copy before making it available.

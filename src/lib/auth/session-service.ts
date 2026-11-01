@@ -1,4 +1,4 @@
-import "server-only";
+﻿import "server-only";
 
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { and, eq, gt, isNull } from "drizzle-orm";
@@ -7,7 +7,7 @@ import { db } from "@/lib/db/client";
 import { devices, sessions, users } from "@/lib/db/schema";
 import type { AdminRole } from "@/lib/domain";
 
-const COOKIE_NAME = "nivora_session";
+const COOKIE_NAME = "Citizavrexo_session";
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
 export type AuthenticatedUser = { id: string; name: string; email: string; status: "active" | "suspended" | "pending" | "deleted"; adminRole: AdminRole | null; sessionId: string };
 

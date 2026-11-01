@@ -1,4 +1,4 @@
-import "server-only";
+﻿import "server-only";
 
 import { createHash, createHmac } from "node:crypto";
 
@@ -11,7 +11,7 @@ function secret(): string {
 }
 
 export function deriveActionToken(id: string, purpose: ActionTokenPurpose): string {
-  return createHmac("sha256", secret()).update(`nivora:${purpose}:${id}`).digest("base64url");
+  return createHmac("sha256", secret()).update(`Citizavrexo:${purpose}:${id}`).digest("base64url");
 }
 
 export function hashActionToken(value: string): string {

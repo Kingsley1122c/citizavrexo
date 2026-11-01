@@ -1,4 +1,4 @@
-import "server-only";
+﻿import "server-only";
 
 import { randomBytes, randomUUID } from "node:crypto";
 import { and, desc, eq, gt } from "drizzle-orm";
@@ -580,7 +580,7 @@ export function reviewWithdrawalRequest(input: { actorId: string; actorLabel: st
     if (update.changes !== 1) throw new WithdrawalError("This withdrawal request was already reviewed.");
     const completed = input.decision === "completed";
     const t = userUi(record.user.locale);
-    tx.insert(notifications).values({ id: randomUUID(), userId: record.user.id, kind: "transaction", title: `Withdrawal request ${input.decision}`, message: completed ? "Customer Service marked your withdrawal request as completed. No balance was changed by Nivora Core." : "Your withdrawal request was rejected. Open Nivora Core to review its status.", eventReference: `${record.request.reference}:${input.decision}`, important: true, createdAt: now }).run();
+    tx.insert(notifications).values({ id: randomUUID(), userId: record.user.id, kind: "transaction", title: `Withdrawal request ${input.decision}`, message: completed ? "Customer Service marked your withdrawal request as completed. No balance was changed by CITIZAVREXO." : "Your withdrawal request was rejected. Open CITIZAVREXO to review its status.", eventReference: `${record.request.reference}:${input.decision}`, important: true, createdAt: now }).run();
     tx.insert(emailOutbox).values({ id: randomUUID(), recipient: record.user.email, event: completed ? "transaction_completed" : "transaction_failed", eventReference: `${record.request.reference}:${input.decision}`, payloadJson: JSON.stringify({ to: record.user.email, locale: record.user.locale, event: completed ? "transaction_completed" : "transaction_failed", eventReference: record.request.reference, displayName: record.user.name, summary: completed ? t.notifications.messageWithdrawalCompleted : t.notifications.messageWithdrawalRejected }), status: "pending", createdAt: now }).run();
     appendAudit(tx, {
       actorId: input.actorId,
@@ -630,3 +630,4 @@ export function getWithdrawalAuthorizationStateForUser(requestId: string, userId
     attempts,
   };
 }
+

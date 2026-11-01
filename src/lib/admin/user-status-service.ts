@@ -1,4 +1,4 @@
-import "server-only";
+﻿import "server-only";
 
 import { randomUUID } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
@@ -36,7 +36,7 @@ export function changeUserStatus(input: { actorId: string; actorLabel: string; a
     tx.insert(userStatusChanges).values({ id: reference, userId: target.id, previousStatus: target.status as "active" | "suspended", nextStatus: input.nextStatus, reason: actionReason, performedBy: actor.id, performedAt: now }).run();
     const t = userUi(target.locale);
     const localizedTitle = input.nextStatus === "suspended" ? t.notifications.titleAccountSuspended : t.notifications.titleAccountRestored;
-    persistUserEvent(tx, { userId: target.id, email: target.email, displayName: target.name, locale: target.locale, kind: "security", title: input.nextStatus === "suspended" ? "Account suspended" : "Account restored", message: input.nextStatus === "suspended" ? "Your account access has been suspended. Contact Customer Service if you need assistance." : "Your Nivora Core account access has been restored.", emailEvent: "important_account_notification", eventKey: reference, emailEventKey: `${reference}:${input.nextStatus}`, publicReference: reference, emailSummary: localizedTitle, important: true, createdAt: now });
+    persistUserEvent(tx, { userId: target.id, email: target.email, displayName: target.name, locale: target.locale, kind: "security", title: input.nextStatus === "suspended" ? "Account suspended" : "Account restored", message: input.nextStatus === "suspended" ? "Your account access has been suspended. Contact Customer Service if you need assistance." : "Your CITIZAVREXO account access has been restored.", emailEvent: "important_account_notification", eventKey: reference, emailEventKey: `${reference}:${input.nextStatus}`, publicReference: reference, emailSummary: localizedTitle, important: true, createdAt: now });
     tx.insert(auditEvents).values({ id: `AUD-${randomUUID()}`, actorId: actor.id, actorLabel: actor.email, action: `user.${input.nextStatus === "suspended" ? "suspend" : "unsuspend"}`, target: target.id, result: "success", metadataJson: JSON.stringify({ reason: actionReason, reference }), timestamp: now }).run();
   }, { behavior: "immediate" });
 }

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import { DeploymentGuard } from "@/components/deployment-guard";
@@ -15,8 +15,33 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: { default: "Nivora Core", template: "%s | Nivora Core" },
+  metadataBase: new URL("https://citizavrexo.com"),
+  title: { default: "Citizavrexo", template: "%s | Citizavrexo" },
   description: "Banking made beautifully simple.",
+  openGraph: {
+    title: "Citizavrexo",
+    description: "Banking made beautifully simple.",
+    url: "https://citizavrexo.com",
+    siteName: "Citizavrexo",
+    images: [{ url: "/brand/og-citizavrexo.png", width: 1200, height: 630, alt: "Citizavrexo premium identity" }],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Citizavrexo",
+    description: "Banking made beautifully simple.",
+    images: ["/brand/og-citizavrexo.png"],
+  },
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/icons/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icons/favicon-48.png", sizes: "48x48", type: "image/png" },
+    ],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+    shortcut: ["/favicon.svg"],
+  },
+  manifest: "/site.webmanifest",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -31,3 +56,4 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     </html>
   );
 }
+

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, rmSync } from "node:fs";
+﻿import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { hash, verify } from "@node-rs/argon2";
@@ -31,7 +31,7 @@ vi.mock("next/headers", () => ({
   })),
 }));
 
-const directory = join(tmpdir(), `nivora-email-auth-${process.pid}`);
+const directory = join(tmpdir(), `Citizavrexo-email-auth-${process.pid}`);
 const databasePath = join(directory, "email-auth.db");
 let sqlite: Database.Database;
 let database: ReturnType<typeof drizzle>;
@@ -39,7 +39,7 @@ let database: ReturnType<typeof drizzle>;
 beforeAll(async () => {
   mkdirSync(directory, { recursive: true });
   process.env.DATABASE_URL = databasePath;
-  process.env.APP_URL = "https://nivoracore.com";
+  process.env.APP_URL = "https://citizavrexo.com";
   process.env.RECOVERY_CODE_PEPPER = "test-only-recovery-pepper-at-least-32-characters";
   sqlite = new Database(databasePath);
   database = drizzle(sqlite);
@@ -96,7 +96,7 @@ describe("email-backed authentication", () => {
     expect(session).toMatchObject({ ipAddress: "203.0.113.8", userAgent: "Mobile Registration Browser", revokedAt: null });
     expect(device).toMatchObject({ userId: user!.id, name: "Mobile device", location: "203.0.113.8" });
     expect(await getAuthenticatedUser()).toMatchObject({ id: user!.id, status: "active", sessionId: session!.id });
-    expect(database.select().from(notifications).where(eq(notifications.eventReference, `WELCOME-${user!.id}`)).get()?.title).toBe("Welcome to Nivora Core");
+    expect(database.select().from(notifications).where(eq(notifications.eventReference, `WELCOME-${user!.id}`)).get()?.title).toBe("Welcome to CITIZAVREXO");
     const welcomeEmail = database.select().from(emailOutbox).where(eq(emailOutbox.eventReference, `WELCOME-${user!.id}`)).get();
     expect(welcomeEmail).toMatchObject({ event: "welcome", status: "pending", attempts: 0 });
     expect(JSON.parse(welcomeEmail!.payloadJson)).toMatchObject({ locale: "ja", summary: userUi("ja").notifications.messageWelcomeReady });
@@ -164,3 +164,4 @@ describe("email-backed authentication", () => {
     await expect(resetPasswordWithToken(token, "ReplacementPassword!2026", new Date(Date.now() + 31 * 60 * 1000))).rejects.toThrow("invalid or expired");
   });
 });
+

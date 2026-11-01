@@ -1,10 +1,11 @@
-"use client";
+﻿"use client";
 
 import { AlertCircle, RotateCw } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 
 export default function ErrorPage({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
   return <main className="route-state">
-    <div className="brand"><span className="brand-mark"><i/></span><span>Nivora <b>Core</b></span></div>
+    <div className="brand"><BrandLogo tone="light"/></div>
     <section className="panel route-state-panel" role="alert">
       <AlertCircle size={30}/>
       <h1>Unable to load this page</h1>
@@ -13,3 +14,4 @@ export default function ErrorPage({ reset }: { error: Error & { digest?: string 
     </section>
   </main>;
 }
+

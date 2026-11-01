@@ -1,4 +1,4 @@
-import "server-only";
+﻿import "server-only";
 
 import { randomUUID } from "node:crypto";
 import { and, eq, gt, isNull } from "drizzle-orm";
@@ -51,7 +51,7 @@ export type TransferQuote = {
 
 export function findTransferRecipient(userId: string, senderAccountId: string, accountNumber: string) {
   const normalized = accountNumber.trim();
-  if (!/^\d{10}$/.test(normalized)) throw new TransferError("Enter a valid ten-digit Nivora account number.");
+  if (!/^\d{10}$/.test(normalized)) throw new TransferError("Enter a valid ten-digit Citizavrexo account number.");
   const sender = db.select({ account: accounts, user: users }).from(accounts).innerJoin(users, eq(accounts.userId, users.id)).where(and(eq(accounts.id, senderAccountId), eq(accounts.userId, userId))).get();
   if (!sender || sender.account.status !== "active" || sender.user.status !== "active" || sender.user.deletedAt) throw new TransferError("The sending account is not available.");
   const recipient = db.select({ accountId: accounts.id, accountNumber: accounts.number, accountName: accounts.name, currency: accounts.currency, accountStatus: accounts.status, userId: users.id, userName: users.name, userStatus: users.status })
@@ -168,3 +168,4 @@ export function getTransferReceiptForUser(reference: string, userId: string): Tr
   const recipientCurrency = transfer.recipientCurrency ?? transfer.currency;
   return { reference: transfer.reference, occurredAt: transfer.createdAt, amount: minorToMajor(transfer.amountMinor, transfer.currency), currency: transfer.currency, sourceAmount: minorToMajor(transfer.amountMinor, transfer.currency), sourceCurrency: transfer.currency, recipientAmount: minorToMajor(recipientAmountMinor, recipientCurrency), recipientCurrency, exchangeRate: transfer.exchangeRate ?? "1", rateDate: transfer.rateDate ?? transfer.createdAt.slice(0, 10), rateTimestamp: transfer.rateTimestamp ?? transfer.createdAt, rateProvider: transfer.rateProvider ?? "same_currency", status: transfer.status, senderName: transfer.senderName ?? sender.name, senderAccountName: transfer.senderAccountName ?? senderAccount.name, senderAccountNumber: transfer.senderAccountNumber ?? senderAccount.number, recipientName: transfer.recipientName ?? recipient.name, recipientAccountName: transfer.recipientAccountName ?? recipientAccount.name, recipientAccountNumber: transfer.recipientAccountNumber ?? recipientAccount.number };
 }
+

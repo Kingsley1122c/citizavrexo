@@ -1,4 +1,4 @@
-import "server-only";
+﻿import "server-only";
 
 import { randomUUID } from "node:crypto";
 import { and, eq, isNull, lt, lte, or, sql } from "drizzle-orm";
@@ -66,11 +66,11 @@ export async function processEmailOutbox(transport: EmailTransport = resendEmail
   await Promise.allSettled(rows.map((row) => deliverQueuedEmail(row.id, transport)));
 }
 
-declare global { var nivoraEmailWorkerStarted: boolean | undefined; }
+declare global { var CitizavrexoEmailWorkerStarted: boolean | undefined; }
 
 export function startEmailOutboxWorker(): void {
-  if (globalThis.nivoraEmailWorkerStarted) return;
-  globalThis.nivoraEmailWorkerStarted = true;
+  if (globalThis.CitizavrexoEmailWorkerStarted) return;
+  globalThis.CitizavrexoEmailWorkerStarted = true;
   void processEmailOutbox();
   setInterval(() => void processEmailOutbox(), 60_000).unref();
 }

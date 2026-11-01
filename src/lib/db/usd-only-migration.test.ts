@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+﻿import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import Database from "better-sqlite3";
@@ -6,7 +6,7 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-const directory = join(tmpdir(), `nivora-usd-migration-${process.pid}`);
+const directory = join(tmpdir(), `Citizavrexo-usd-migration-${process.pid}`);
 const oldMigrations = join(directory, "old-migrations");
 const databasePath = join(directory, "legacy.db");
 const legacyCurrency = String.fromCharCode(69, 85, 82);

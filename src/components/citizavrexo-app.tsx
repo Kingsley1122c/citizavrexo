@@ -78,6 +78,7 @@ import { currencyConfig, formatCurrencyAmount, SUPPORTED_CURRENCIES, type Curren
 import { CurrencyChangePanel } from "@/components/currency-change-panel";
 import { localeNames, resolveSupportedLocale, SUPPORTED_LOCALES, type Locale } from "@/lib/i18n/config";
 import { localizeAccountName, localizeNotification, localizeTransactionDescription, localizeTransactionType, localizeUserActionMessage, localizeUserStatus, userUi } from "@/lib/i18n/user-ui";
+import { BrandLogo } from "@/components/brand-logo";
 
 type Workspace = {
   user: User;
@@ -128,16 +129,7 @@ const when = (value: string, locale = "en-NG") =>
 const Status = ({ value, locale }: { value: string; locale: Locale }) => (
   <span className={`status status-${value}`}>{localizeUserStatus(locale, value)}</span>
 );
-const Logo = () => (
-  <div className="brand">
-    <span className="brand-mark">
-      <i />
-    </span>
-    <span>
-      Nivora <b>Core</b>
-    </span>
-  </div>
-);
+const Logo = ({ tone = "light" }: { tone?: "light" | "dark" }) => <div className="brand"><BrandLogo tone={tone}/></div>;
 const csvCell = (value: unknown) => `"${String(value ?? "").replaceAll('"', '""')}"`;
 function downloadTransactions(items: Transaction[], locale: Locale) {
   const t = userUi(locale).app;
@@ -146,14 +138,14 @@ function downloadTransactions(items: Transaction[], locale: Locale) {
   const url = URL.createObjectURL(new Blob([rows.map((row) => row.map(csvCell).join(",")).join("\r\n")], { type: "text/csv;charset=utf-8" }));
   const link = document.createElement("a");
   link.href = url;
-  link.download = "nivora-transactions.csv";
+  link.download = "Citizavrexo-transactions.csv";
   document.body.append(link);
   link.click();
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-export function NivoraApp({ data }: { data: Workspace }) {
+export function CitizavrexoApp({ data }: { data: Workspace }) {
   const [view, setView] = useState<View>("home");
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [locale, setLocale] = useState<Locale>(data.user.locale);
@@ -162,11 +154,11 @@ export function NivoraApp({ data }: { data: Workspace }) {
   const [menu, setMenu] = useState(false);
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
-      const storedTheme = localStorage.getItem("nivora-theme") as
+      const storedTheme = localStorage.getItem("Citizavrexo-theme") as
         | "light"
         | "dark"
         | null;
-      const storedLocale = localStorage.getItem("nivora-locale");
+      const storedLocale = localStorage.getItem("Citizavrexo-locale");
       const detected = resolveSupportedLocale(navigator.language);
       setTheme(
         storedTheme ??
@@ -184,13 +176,13 @@ export function NivoraApp({ data }: { data: Workspace }) {
   useEffect(() => {
     if (preferencesReady) {
       document.documentElement.dataset.theme = theme;
-      localStorage.setItem("nivora-theme", theme);
+      localStorage.setItem("Citizavrexo-theme", theme);
     }
   }, [theme, preferencesReady]);
   useEffect(() => {
     if (preferencesReady) {
       document.documentElement.lang = locale;
-      localStorage.setItem("nivora-locale", locale);
+      localStorage.setItem("Citizavrexo-locale", locale);
     }
   }, [locale, preferencesReady]);
   const go = (next: View) => {
@@ -253,7 +245,7 @@ export function NivoraApp({ data }: { data: Workspace }) {
       <main className="app-main">
         <header className="topbar">
           <div className="mobile-brand">
-            <Logo />
+            <Logo tone="dark" />
           </div>
           <b className="desktop-title">
             {navLabels[view]}
@@ -372,7 +364,7 @@ function Dashboard({
 }) {
   const [visible, setVisible] = useState(true);
   useEffect(() => {
-    const frame = requestAnimationFrame(() => setVisible(localStorage.getItem("nivora-balance-hidden") !== "true"));
+    const frame = requestAnimationFrame(() => setVisible(localStorage.getItem("Citizavrexo-balance-hidden") !== "true"));
     return () => cancelAnimationFrame(frame);
   }, []);
   const preferredAccount = data.accounts.find((item) => item.currency === displayCurrency);
@@ -393,7 +385,7 @@ function Dashboard({
           <div className="balance-top">
             <span>
               {preferredAccount ? `${t.totalBalance} · ${displayCurrency}` : `${t.dashboard.availableBalance} · ${account.currency}`} {" "}
-              <button aria-label={visible ? t.dashboard.hideBalance : t.dashboard.showBalance} onClick={() => { const next = !visible; setVisible(next); localStorage.setItem("nivora-balance-hidden", String(!next)); }}>
+              <button aria-label={visible ? t.dashboard.hideBalance : t.dashboard.showBalance} onClick={() => { const next = !visible; setVisible(next); localStorage.setItem("Citizavrexo-balance-hidden", String(!next)); }}>
                 {visible ? <Eye size={18} /> : <EyeOff size={18} />}
               </button>
             </span>
@@ -722,7 +714,7 @@ function Cards({ data, locale, onGoProfile }: { data: Workspace; locale: Locale;
         <div>
           {items.map((c) => (
             <button
-              className={`nivora-card ${c.status === "frozen" ? "frozen" : ""}`}
+              className={`Citizavrexo-card ${c.status === "frozen" ? "frozen" : ""}`}
               onClick={() => setId(c.id)}
               key={c.id}
             >
@@ -1138,3 +1130,4 @@ function SettingsView({ locale, displayCurrency, onDisplayCurrencyChange, accoun
     </>
   );
 }
+

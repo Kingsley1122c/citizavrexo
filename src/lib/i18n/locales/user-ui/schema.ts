@@ -1,4 +1,4 @@
-import type { Locale } from "@/lib/i18n/config";
+﻿import type { Locale } from "@/lib/i18n/config";
 
 export type UserUiCatalog = {
   app: {
@@ -171,7 +171,7 @@ export type UserUiCatalog = {
     keepSignedIn: string;
     forgotPassword: string;
     pleaseWait: string;
-    newToNivora: string;
+    newToCitizavrexo: string;
     alreadyHaveAccount: string;
     registrationUnavailable: string;
     registrationUnavailableAction: string;
@@ -402,3 +402,4 @@ export type UserUiCatalog = {
 };
 
 export type UserUiCatalogByLocale = Record<Locale, UserUiCatalog>;
+

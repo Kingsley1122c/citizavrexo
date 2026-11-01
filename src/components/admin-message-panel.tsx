@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { CheckCircle2, Eye, Mail, Send, X } from "lucide-react";
 import { useActionState, useState } from "react";
@@ -23,7 +23,7 @@ export function AdminMessagePanel({ user, messages, close }: { user: User; messa
       <label>Subject<input name="subject" value={subject} onChange={(event) => setSubject(event.target.value)} minLength={2} maxLength={120} required placeholder="Message subject"/></label>
       <label>Message body<textarea name="message" value={message} onChange={(event) => setMessage(event.target.value)} minLength={2} maxLength={4000} required rows={8} placeholder="Write a clear message for this customer."/><small className="character-count">{message.length} / 4000</small></label>
       <button className="preview-toggle" type="button" aria-pressed={preview} onClick={() => setPreview((value) => !value)}><Eye size={16}/>{preview ? "Hide preview" : "Preview message"}</button>
-      {preview && <article className="message-preview" aria-label="Message preview"><small>NIVORA CORE MESSAGE</small><h3>{subject || "Message subject"}</h3><p>{message || "Your message will appear here."}</p><span className="button primary">Open Nivora Core</span></article>}
+      {preview && <article className="message-preview" aria-label="Message preview"><small>CITIZAVREXO MESSAGE</small><h3>{subject || "Message subject"}</h3><p>{message || "Your message will appear here."}</p><span className="button primary">Open CITIZAVREXO</span></article>}
       <div className="modal-actions"><button className="button secondary" type="button" onClick={close}>Cancel</button><button className="button primary" type="submit" disabled={pending || subject.trim().length < 2 || message.trim().length < 2}><Send size={16}/>Send Message</button></div>
     </form>}
     {state.error && <p className="auth-message error" role="alert">{state.error}</p>}

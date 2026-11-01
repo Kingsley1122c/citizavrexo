@@ -1,6 +1,6 @@
-# Nivora Core
+﻿# CITIZAVREXO
 
-Nivora Core is a Modern Minimal financial account-management application built with Next.js 16, React 19, strict TypeScript, Tailwind CSS 4, Drizzle ORM, and SQLite.
+CITIZAVREXO is a Modern Minimal financial account-management application built with Next.js 16, React 19, strict TypeScript, Tailwind CSS 4, Drizzle ORM, and SQLite.
 
 ## Application surfaces
 
@@ -24,8 +24,8 @@ npm run dev
 
 The idempotent seed creates development fixtures only:
 
-- User: `amara@example.test` / `NivoraDemo!2026`
-- Super admin: `admin@example.test` / `NivoraAdmin!2026`
+- User: `amara@example.test` / `CitizavrexoDemo!2026`
+- Super admin: `admin@example.test` / `CitizavrexoAdmin!2026`
 
 Do not deploy these identities or passwords.
 
@@ -57,7 +57,7 @@ Do not deploy these identities or passwords.
 
 ## Render deployment
 
-`render.yaml` defines one Node web service because file-backed SQLite cannot safely be shared by multiple application instances. It mounts a persistent disk at `/var/data`, sets `DATABASE_URL=file:/var/data/nivora.db`, runs forward-only migrations before `next start`, and uses `/api/health` to verify database access.
+`render.yaml` defines one Node web service because file-backed SQLite cannot safely be shared by multiple application instances. It mounts a persistent disk at `/var/data`, sets `DATABASE_URL=file:/var/data/Citizavrexo.db`, runs forward-only migrations before `next start`, and uses `/api/health` to verify database access.
 
 Set `RECOVERY_CODE_PEPPER` and `RESEND_API_KEY` as secrets in Render. Set `EMAIL_FROM` to a sender on a domain that Resend has verified and set `APP_URL` to the canonical HTTPS origin. Never copy `.env.local` into the repository. After the first successful migration, provision the initial administrator once from a Render shell by setting temporary `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_NAME`, and `BOOTSTRAP_ADMIN_PASSWORD` values and running:
 
@@ -69,15 +69,15 @@ Remove all three bootstrap variables immediately afterward. The command refuses 
 
 ## Client Handover
 
-The client handover consists of administrator access to Nivora Core.
+The client handover consists of administrator access to CITIZAVREXO.
 
-The client receives administrator ownership through **Admin → Settings → Transfer ownership**. The client follows the secure ownership-transfer link and creates their own administrator password. The previous administrator's sessions are revoked when the transfer is completed.
+The client receives administrator ownership through **Admin â†’ Settings â†’ Transfer ownership**. The client follows the secure ownership-transfer link and creates their own administrator password. The previous administrator's sessions are revoked when the transfer is completed.
 
 Infrastructure, source-code, deployment, domain, email-service, and customer-service accounts remain under the developer/operator's control unless separately agreed with the client.
 
 The application stores only the ownership-transfer verification-token hash. A completed transfer creates the verified replacement super administrator, suspends and demotes the previous administrator, and revokes all sessions and devices belonging to the previous identity.
 
-The handover delivery adapter constructs the `https://nivoracore.com/admin-transfer?token=...` link only at send time, never writes the plaintext token to the generic email outbox, logs, or analytics, and returns success only after Resend accepts the message.
+The handover delivery adapter constructs the `https://citizavrexo.com/admin-transfer?token=...` link only at send time, never writes the plaintext token to the generic email outbox, logs, or analytics, and returns success only after Resend accepts the message.
 
 The persistent disk requires a paid Render plan and must have snapshots or off-site backups configured before production financial records are accepted. Keep the service at one instance while SQLite remains the datastore.
 
@@ -109,7 +109,7 @@ npm run build
 npm start
 ```
 
-The default database is `./data/nivora.db`; set `DATABASE_URL=file:...` to use another SQLite file. Database files and local environment files are ignored.
+The default database is `./data/Citizavrexo.db`; set `DATABASE_URL=file:...` to use another SQLite file. Database files and local environment files are ignored.
 
 ## Security notes
 
@@ -118,3 +118,4 @@ The default database is `./data/nivora.db`; set `DATABASE_URL=file:...` to use a
 - Balance and transaction writes belong only in the trusted ledger service, never in browser state or general user actions.
 - Every external ledger request must provide a stable, unique idempotency key.
 - Development fixtures, local SQLite, and an unconfigured email transport are not production-hosted infrastructure.
+

@@ -263,7 +263,7 @@ function SendMoneyDialog({
             </div>
             <div>
               <dt>Rate date</dt>
-              <dd>{dateTime(quote.rateTimestamp, locale)} · {quote.rateProvider === "same_currency" ? "Nivora 1:1" : quote.rateProvider.replaceAll("_", " ")}</dd>
+              <dd>{dateTime(quote.rateTimestamp, locale)} · {quote.rateProvider === "same_currency" ? "Citizavrexo 1:1" : quote.rateProvider.replaceAll("_", " ")}</dd>
             </div>
             <div>
               <dt>Fees</dt>
@@ -955,3 +955,4 @@ function Modal({
 function WorkflowPending({ label }: { label: string }) {
   return <div className="workflow-pending" role="status" aria-live="polite" aria-busy="true"><span className="loading-mark" aria-hidden="true"/><b>{label}</b><small>Please keep this window open.</small></div>;
 }
+

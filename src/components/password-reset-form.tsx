@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { ArrowRight, Eye, Globe2, LockKeyhole, ShieldCheck } from "lucide-react";
@@ -11,6 +11,7 @@ import {
   type Locale,
 } from "@/lib/i18n/config";
 import { localizeAuthStateMessage, userUi } from "@/lib/i18n/user-ui";
+import { BrandLogo } from "@/components/brand-logo";
 
 export function PasswordResetForm({ token }: { token: string }) {
   const [state, action, pending] = useActionState(completePasswordResetAction, {});
@@ -21,7 +22,7 @@ export function PasswordResetForm({ token }: { token: string }) {
     let cancelled = false;
     queueMicrotask(() => {
       if (cancelled) return;
-      const stored = localStorage.getItem("nivora-locale");
+      const stored = localStorage.getItem("Citizavrexo-locale");
       localeHydrated.current = true;
       setLocale(stored ? resolveSupportedLocale(stored) : resolveSupportedLocale(navigator.language));
     });
@@ -29,12 +30,12 @@ export function PasswordResetForm({ token }: { token: string }) {
   }, []);
   useEffect(() => {
     if (!localeHydrated.current) return;
-    localStorage.setItem("nivora-locale", locale);
+    localStorage.setItem("Citizavrexo-locale", locale);
     document.documentElement.lang = locale;
   }, [locale]);
   const t = userUi(locale);
   return <main className="auth-page">
-    <section className="auth-brand"><div className="brand"><span className="brand-mark"><i/></span><span>Nivora <b>Core</b></span></div><div><span className="eyebrow">{t.resetPassword.brandEyebrow}</span><h1>{t.resetPassword.brandTitleLine1}<br/>{t.resetPassword.brandTitleLine2}</h1><p>{t.resetPassword.brandBody}</p></div><footer><ShieldCheck size={18}/>{t.resetPassword.brandFooter}</footer></section>
+    <section className="auth-brand"><div className="brand"><BrandLogo tone="light"/></div><div><span className="eyebrow">{t.resetPassword.brandEyebrow}</span><h1>{t.resetPassword.brandTitleLine1}<br/>{t.resetPassword.brandTitleLine2}</h1><p>{t.resetPassword.brandBody}</p></div><footer><ShieldCheck size={18}/>{t.resetPassword.brandFooter}</footer></section>
     <section className="auth-form-wrap"><form action={action} className="auth-form">
       <label className="locale"><Globe2 size={16}/><select aria-label={t.app.language} value={locale} onChange={(event) => setLocale(event.target.value as Locale)}>{SUPPORTED_LOCALES.map((value) => <option key={value} value={value}>{localeNames[value]}</option>)}</select></label>
       <span className="auth-icon"><LockKeyhole size={22}/></span><h2>{t.resetPassword.title}</h2><p>{t.resetPassword.subtitle}</p>

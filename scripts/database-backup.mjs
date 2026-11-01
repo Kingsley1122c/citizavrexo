@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+﻿import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
 import { access, appendFile, mkdir, mkdtemp, open, rename, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -113,7 +113,7 @@ async function createBackup(outputArgument) {
   const output = resolve(outputArgument);
   await assertMissing(output);
   await mkdir(dirname(output), { recursive: true });
-  const temporaryDirectory = await mkdtemp(join(tmpdir(), "nivora-backup-"));
+  const temporaryDirectory = await mkdtemp(join(tmpdir(), "Citizavrexo-backup-"));
   const snapshot = join(temporaryDirectory, "snapshot.db");
   const database = new Database(source, { readonly: true, fileMustExist: true });
   try {
@@ -132,7 +132,7 @@ async function createBackup(outputArgument) {
 
 async function verifyBackup(inputArgument) {
   if (!inputArgument) throw new Error("Usage: npm run db:backup:verify -- <input.nvbackup>");
-  const temporaryDirectory = await mkdtemp(join(tmpdir(), "nivora-verify-"));
+  const temporaryDirectory = await mkdtemp(join(tmpdir(), "Citizavrexo-verify-"));
   const restored = join(temporaryDirectory, "restored.db");
   try {
     await decryptDatabase(resolve(inputArgument), restored);

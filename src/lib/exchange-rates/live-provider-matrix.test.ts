@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import { resolve } from "node:path";
 import { currencyFractionDigits, type Currency } from "@/lib/currency";
 import { convertMinorAmount } from "./decimal";
@@ -9,7 +9,7 @@ const pairs = [
 ] as const satisfies readonly (readonly [Currency, Currency])[];
 const accountNumber = (currency: Currency) => String(9200000000 + ["USD", "KRW", "TWD", "JPY", "HKD", "SGD", "CNY", "THB", "VND", "IDR", "MYR", "INR", "PHP", "GBP", "EUR", "KWD"].indexOf(currency));
 const databasePath = process.env.DATABASE_URL?.replace(/^file:/, "");
-const configured = process.env.NODE_ENV !== "production" && !process.env.RENDER && process.env.QA_FIXTURE_MODE === "local-only" && process.env.LIVE_PROVIDER_GATE === "local-only" && databasePath !== undefined && resolve(databasePath) === resolve("data/nivora-provider-gate.db") && process.env.APP_URL === "http://localhost:3011" && process.env.EXCHANGE_RATE_PROVIDER === "open_exchange_rates" && Boolean(process.env.OPEN_EXCHANGE_RATES_APP_ID);
+const configured = process.env.NODE_ENV !== "production" && !process.env.RENDER && process.env.QA_FIXTURE_MODE === "local-only" && process.env.LIVE_PROVIDER_GATE === "local-only" && databasePath !== undefined && resolve(databasePath) === resolve("data/Citizavrexo-provider-gate.db") && process.env.APP_URL === "http://localhost:3011" && process.env.EXCHANGE_RATE_PROVIDER === "open_exchange_rates" && Boolean(process.env.OPEN_EXCHANGE_RATES_APP_ID);
 
 describe.skipIf(!configured)("live Open Exchange Rates currency matrix", () => {
   it.each(pairs)("retrieves and persists a verified %s/%s quote", async (fromCurrency, toCurrency) => {

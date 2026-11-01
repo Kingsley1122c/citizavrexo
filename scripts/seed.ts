@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs";
+﻿import { mkdirSync } from "node:fs";
 import { hash } from "@node-rs/argon2";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
@@ -7,16 +7,16 @@ import { assertDevelopmentSeedEnvironment } from "../src/lib/db/seed-guard";
 
 assertDevelopmentSeedEnvironment();
 mkdirSync("./data", { recursive: true });
-const sqlite = new Database(process.env.DATABASE_URL?.replace(/^file:/, "") ?? "./data/nivora.db");
+const sqlite = new Database(process.env.DATABASE_URL?.replace(/^file:/, "") ?? "./data/Citizavrexo.db");
 sqlite.pragma("foreign_keys = ON");
 const database = drizzle(sqlite);
 const now = "2026-09-11T10:12:00Z";
 const passwordOptions = { memoryCost: 19456, timeCost: 2, parallelism: 1 };
 
 async function seed() {
-  const userPassword = await hash("NivoraDemo!2026", passwordOptions);
-  const recipientPassword = await hash("NivoraRecipient!2026", passwordOptions);
-  const adminPassword = await hash("NivoraAdmin!2026", passwordOptions);
+  const userPassword = await hash("CitizavrexoDemo!2026", passwordOptions);
+  const recipientPassword = await hash("CitizavrexoRecipient!2026", passwordOptions);
+  const adminPassword = await hash("CitizavrexoAdmin!2026", passwordOptions);
   database.transaction((tx) => {
     tx.insert(users).values([
       { id: "usr_01", name: "Amara Okafor", email: "amara@example.test", avatarInitials: "AO", status: "active", emailVerifiedAt: "2026-01-12T10:00:00Z", locale: "en", createdAt: "2026-01-12T09:30:00Z", updatedAt: now },
@@ -51,13 +51,13 @@ async function seed() {
     ]).onConflictDoNothing().run();
     tx.insert(devices).values([
       { id: "dev_01", userId: "usr_01", name: "Windows laptop", browser: "Chrome", location: "Lagos, Nigeria", lastActiveAt: now, loginAt: "2026-09-11T08:42:00Z", trusted: true },
-      { id: "dev_02", userId: "usr_01", name: "iPhone", browser: "Nivora Web", location: "Lagos, Nigeria", lastActiveAt: "2026-09-10T19:33:00Z", loginAt: "2026-08-22T12:10:00Z", trusted: true },
+      { id: "dev_02", userId: "usr_01", name: "iPhone", browser: "Citizavrexo Web", location: "Lagos, Nigeria", lastActiveAt: "2026-09-10T19:33:00Z", loginAt: "2026-08-22T12:10:00Z", trusted: true },
     ]).onConflictDoNothing().run();
     tx.insert(recoveryRequests).values([{ id: "RCV-2049", userId: "usr_01", submittedAt: "2026-09-11T07:20:00Z", status: "under_review", method: "support", risk: "medium" }]).onConflictDoNothing().run();
     tx.insert(auditEvents).values([{ id: "AUD-77103", actorId: "usr_01", actorLabel: "System", action: "device.verify", target: "usr_01", timestamp: "2026-09-11T08:45:00Z", result: "success", metadataJson: JSON.stringify({ device: "dev_01" }) }]).onConflictDoNothing().run();
   });
   sqlite.close();
-  console.log("Nivora development database seeded.");
+  console.log("Citizavrexo development database seeded.");
 }
 
 seed().catch((error) => { console.error(error); process.exitCode = 1; });

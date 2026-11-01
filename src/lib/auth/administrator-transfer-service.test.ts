@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, rmSync } from "node:fs";
+﻿import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { hash } from "@node-rs/argon2";
@@ -9,7 +9,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { administratorTransfers, auditEvents, credentials, devices, sessions, users } from "@/lib/db/schema";
 
-const directory = join(tmpdir(), `nivora-transfer-${process.pid}`);
+const directory = join(tmpdir(), `Citizavrexo-transfer-${process.pid}`);
 const databasePath = join(directory, "transfer.db");
 const currentPassword = "CurrentAdmin!2026";
 const replacementPassword = "ReplacementAdmin!2026";

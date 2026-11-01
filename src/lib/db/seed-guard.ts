@@ -1,4 +1,4 @@
-import { resolve } from "node:path";
+﻿import { resolve } from "node:path";
 
 export function assertDevelopmentSeedEnvironment(environment = process.env.NODE_ENV): void {
   if (environment === "production") throw new Error("Development database seeding is disabled in production.");
@@ -11,6 +11,6 @@ export function assertQaFixtureEnvironment(environment: NodeJS.ProcessEnv = proc
   const databaseUrl = environment.DATABASE_URL;
   if (!databaseUrl?.startsWith("file:")) throw new Error("QA fixtures require an explicit SQLite file URL.");
   const databasePath = resolve(databaseUrl.slice("file:".length));
-  if (databasePath !== resolve("data/nivora-qa.db") || /[\\/]var[\\/]data[\\/]/i.test(databasePath)) throw new Error("QA fixtures may only target data/nivora-qa.db.");
+  if (databasePath !== resolve("data/Citizavrexo-qa.db") || /[\\/]var[\\/]data[\\/]/i.test(databasePath)) throw new Error("QA fixtures may only target data/Citizavrexo-qa.db.");
   return databasePath;
 }

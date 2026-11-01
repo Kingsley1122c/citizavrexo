@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
@@ -183,7 +183,7 @@ export async function requestCardAction(_: CardRequestActionState, formData: For
 export async function lookupTransferRecipientAction(_: RecipientLookupState, formData: FormData): Promise<RecipientLookupState> {
   const user = await requireUser();
   const parsed = z.object({ senderAccountId: opaqueId, accountNumber: z.string().trim().regex(/^\d{10}$/) }).safeParse({ senderAccountId: formData.get("senderAccountId"), accountNumber: formData.get("accountNumber") });
-  if (!parsed.success) return { error: "Enter a valid Nivora account number." };
+  if (!parsed.success) return { error: "Enter a valid Citizavrexo account number." };
   try {
     const recipient = findTransferRecipient(user.id, parsed.data.senderAccountId, parsed.data.accountNumber);
     return { recipient: { accountNumber: recipient.accountNumber, maskedAccountNumber: `•••• ${recipient.accountNumber.slice(-4)}`, accountName: recipient.accountName, userName: recipient.userName, currency: recipient.currency } };
