@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
+import { createPortal } from "react-dom";
 import {
   ArrowRight,
   AtSign,
@@ -237,7 +238,7 @@ export function AuthPanel({
                   <button className="language-trigger" type="button" aria-haspopup="dialog" aria-expanded={languageOpen} aria-busy={!localeReady} disabled={!localeReady} onClick={() => setLanguageOpen(true)}>
                     {!localeReady ? <BrandedStatus compact message="Loading language preferences..." /> : <><span className="language-flag" aria-hidden="true">{localeFlags[locale]}</span><span><b>{localeNames[locale]}</b><small>{locale}</small></span><ChevronDown size={18} aria-hidden="true" /></>}
                   </button>
-                  {languageOpen && <div className="language-popup-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setLanguageOpen(false); }}>
+                  {languageOpen && createPortal(<div className="language-popup-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setLanguageOpen(false); }}>
                     <section className="language-popup" role="dialog" aria-modal="true" aria-labelledby="language-popup-title">
                       <header><div><span className="eyebrow">PREFERRED LANGUAGE</span><h3 id="language-popup-title">{t.app.language}</h3></div><button className="icon-button" type="button" aria-label="Close language selector" onClick={() => setLanguageOpen(false)}><X size={18} /></button></header>
                       <label className="language-search"><Search size={16} /><span className="sr-only">Search languages</span><input autoFocus value={languageQuery} onChange={(event) => setLanguageQuery(event.target.value)} placeholder="Search languages" autoComplete="off" /></label>
@@ -246,7 +247,7 @@ export function AuthPanel({
                         {!matchingLocales.length && <p className="language-empty">No matching language</p>}
                       </div>
                     </section>
-                  </div>}
+                  </div>, document.body)}
                 </div>
                 <label>{t.auth.fullName}<span><UserRound size={17} /><input name="name" autoComplete="name" placeholder={t.auth.fullNamePlaceholder} value={registration.name} onChange={(event) => { updateRegistration("name", event.target.value); if (!usernameEdited) setSuggestionHistory([]); }} required minLength={2} maxLength={100} /></span></label>
                 <div className="registration-username-field">
@@ -270,7 +271,7 @@ export function AuthPanel({
                 <label>{t.app.securityView.transactionPin}<span><LockKeyhole size={17} /><input name="pin" type={showPin ? "text" : "password"} inputMode="numeric" pattern="[0-9]{4}" minLength={4} maxLength={4} autoComplete="new-password" placeholder="0000" value={registration.pin} onChange={(event) => updateRegistration("pin", event.target.value)} required /><button type="button" aria-label={showPin ? t.auth.hidePassword : t.auth.showPassword} onClick={() => setShowPin(!showPin)}><Eye size={17} /></button></span></label>
                 <label>Confirm {t.app.securityView.transactionPin}<span><LockKeyhole size={17} /><input name="pinConfirmation" type={showPin ? "text" : "password"} inputMode="numeric" pattern="[0-9]{4}" minLength={4} maxLength={4} autoComplete="new-password" placeholder="0000" value={registration.pinConfirmation} onChange={(event) => updateRegistration("pinConfirmation", event.target.value)} required /></span></label>
                 <dl className="registration-review"><div><dt>Name</dt><dd>{registration.name}</dd></div><div><dt>Username</dt><dd>@{registration.username.toLowerCase()}</dd></div><div><dt>Email</dt><dd>{registration.email}</dd></div><div><dt>Language</dt><dd>{localeNames[locale]}</dd></div></dl>
-                {pending && <BrandedStatus message="Creating your account..." detail="Securing your account..." />}
+                {pending && <div className="registration-loading-overlay"><BrandLogo tone="light" /><BrandedStatus message="Creating your account..." detail="Setting up your account. Securing your account. Preparing your dashboard. Almost ready..." /></div>}
                 {state.error && localizeAuthStateMessage(locale, state.error) && <BrandedStatus variant="error" message="Account creation paused" detail={localizeAuthStateMessage(locale, state.error)} />}
                 {state.success && <BrandedStatus variant="success" message="Account created" detail={localizeAuthStateMessage(locale, state.success)} />}
                 <div className="registration-actions"><button type="button" className="button secondary" disabled={pending} onClick={() => setRegistrationStep(2)}><ChevronLeft size={18} /> Back</button><button className="button primary" disabled={pending || unavailable} aria-busy={pending}>{pending ? "Creating account..." : content[2]} <ArrowRight size={18} /></button></div>
@@ -340,7 +341,6 @@ export function AuthPanel({
               </>
             )}
           </div>
-          {mode === "register" && <div className="auth-switch"><Link href="/verify-email">Resend verification email</Link></div>}
           {mode === "reset" && (
             <div className="recovery-options">
               <b>{t.auth.recoveryOptionsUnavailable}</b>

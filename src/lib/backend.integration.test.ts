@@ -306,7 +306,7 @@ describe("authentication abuse controls", () => {
     expect(consumeAuthRateLimit("withdrawal_authorization", identifier, now + 16 * 60 * 1000)).toBe(true);
   });
 
-  it("rejects production registration without email delivery configuration", async () => {
+  it("creates an authenticated production account without email delivery configuration", async () => {
     const { registerUser } = await import("./auth/auth-service");
     const tables = [users, credentials, accounts, authenticationTokens, emailOutbox, auditEvents, sessions, devices] as const;
     const countsBefore = tables.map((table) => database.select().from(table).all().length);
@@ -314,10 +314,11 @@ describe("authentication abuse controls", () => {
     await expect(registerUser(
       { name: "Production Test", username: "production.test", email: "production-registration@example.test", password: "TestPassword!2026", pin: "2468", locale: "en", currency: "USD" },
       { ipAddress: "203.0.113.12", userAgent: "Production Registration Browser" },
-    )).rejects.toThrow("Transactional email delivery is unavailable.");
+    )).resolves.toBeUndefined();
 
-    expect(database.select().from(users).where(eq(users.email, "production-registration@example.test")).get()).toBeUndefined();
-    expect(tables.map((table, index) => database.select().from(table).all().length - countsBefore[index])).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
+    expect(database.select().from(users).where(eq(users.email, "production-registration@example.test")).get()).toMatchObject({ status: "active" });
+    expect(database.select().from(emailOutbox).where(eq(emailOutbox.recipient, "production-registration@example.test")).get()).toMatchObject({ status: "failed" });
+    expect(tables.map((table, index) => database.select().from(table).all().length - countsBefore[index])).toEqual([1, 1, 1, 0, 1, 1, 1, 1]);
   });
 });
 

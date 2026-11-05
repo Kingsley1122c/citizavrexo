@@ -93,19 +93,19 @@ describe("registerAction", () => {
     vi.mocked(registerUser).mockRejectedValueOnce(new Error("Email exists"));
 
     await expect(registerAction({}, validRegistration())).resolves.toEqual({
-      error: "We couldn't confirm verification delivery. If your account is pending, request a new verification link.",
+      error: "We couldn't create your account. Check your details and try again.",
     });
   });
 
-  it("reports acceptance only after the verification email is accepted", async () => {
+  it("redirects to the dashboard after creating the authenticated account", async () => {
     vi.mocked(registerUser).mockResolvedValueOnce(undefined);
 
-    await expect(registerAction({}, validRegistration())).resolves.toEqual({ success: "Verification email accepted for delivery. Check your inbox to continue." });
+    await expect(registerAction({}, validRegistration())).rejects.toThrow("NEXT_REDIRECT");
     expect(registerUser).toHaveBeenCalledWith(expect.objectContaining({ username: "registration.test", email: "registration@example.test", currency: "USD", pin: "2468" }), {
       ipAddress: "203.0.113.4",
       userAgent: "Registration Test Browser",
     });
-    expect(redirect).not.toHaveBeenCalled();
+    expect(redirect).toHaveBeenCalledWith("/app");
   });
 
   it("accepts an 8-character password without composition requirements", async () => {
@@ -113,7 +113,7 @@ describe("registerAction", () => {
     formData.set("password", "abcdefgh");
     formData.set("passwordConfirmation", "abcdefgh");
 
-    await expect(registerAction({}, formData)).resolves.toEqual({ success: "Verification email accepted for delivery. Check your inbox to continue." });
+    await expect(registerAction({}, formData)).rejects.toThrow("NEXT_REDIRECT");
     expect(registerUser).toHaveBeenCalledWith(expect.objectContaining({ password: "abcdefgh" }), expect.any(Object));
   });
 
@@ -133,11 +133,12 @@ describe("registerAction", () => {
     expect(registerUser).not.toHaveBeenCalled();
   });
 
-  it("does not create an account when email verification is unavailable", async () => {
-    vi.mocked(isTransactionalEmailConfigured).mockReturnValueOnce(false);
+  it("creates an account when welcome email delivery is unavailable", async () => {
+    vi.mocked(isTransactionalEmailConfigured).mockReturnValue(false);
 
-    await expect(registerAction({}, validRegistration())).resolves.toEqual({ error: "Registration cannot currently be completed because email verification delivery is unavailable. No account was created." });
-    expect(registerUser).not.toHaveBeenCalled();
+    await expect(registerAction({}, validRegistration())).rejects.toThrow("NEXT_REDIRECT");
+    expect(registerUser).toHaveBeenCalledOnce();
+    expect(isTransactionalEmailConfigured).not.toHaveBeenCalled();
   });
 
   it("preserves registration throttling", async () => {

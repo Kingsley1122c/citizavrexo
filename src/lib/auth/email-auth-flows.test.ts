@@ -14,7 +14,6 @@ import {
   authenticationTokens,
   credentials,
   emailOutbox,
-  notifications,
   sessions,
   userProfiles,
   users,
@@ -87,7 +86,7 @@ describe("email-backed authentication", () => {
     expect(database.select().from(accounts).where(eq(accounts.userId, user!.id)).get()).toMatchObject({ currency, balanceMinor: 0 });
   });
 
-  it("keeps the account pending until its single-use email link is verified", async () => {
+  it("activates and authenticates a new account without an email action link", async () => {
     const { registerUser } = await import("./auth-service");
     const { getAuthenticatedUser } = await import("./session-service");
     const { messages, transport } = captureTransport();
@@ -98,25 +97,19 @@ describe("email-backed authentication", () => {
       transport,
     );
 
-    let user = database.select().from(users).where(eq(users.email, "ready@example.test")).get();
-    expect(user).toMatchObject({ username: "ready.user", status: "pending", locale: "ja", emailVerifiedAt: null });
-    expect(database.select().from(accounts).where(eq(accounts.userId, user!.id)).get()).toMatchObject({ number: expect.stringMatching(/^\d{10}$/), currency: "JPY" });
-    expect(database.select().from(authenticationTokens).where(eq(authenticationTokens.userId, user!.id)).all()).toHaveLength(1);
-    expect(database.select().from(userProfiles).where(eq(userProfiles.userId, user!.id)).get()).toBeUndefined();
-    expect(database.select().from(sessions).where(eq(sessions.userId, user!.id)).all()).toHaveLength(0);
-    expect(await getAuthenticatedUser()).toBeNull();
-    expect(messages).toHaveLength(1);
-    expect(messages[0].text).toContain("https://citizavrexo.com/verify-email?token=");
-
-    const { loginUser, verifyRegisteredEmail } = await import("./auth-service");
-    const verificationToken = actionTokenFrom(messages[0]);
-    expect(() => verifyRegisteredEmail(verificationToken, "wrong@example.test")).toThrow("invalid or expired");
-    verifyRegisteredEmail(verificationToken, "READY@EXAMPLE.TEST");
-    user = database.select().from(users).where(eq(users.email, "ready@example.test")).get();
-    expect(user).toMatchObject({ status: "active" });
+    const user = database.select().from(users).where(eq(users.email, "ready@example.test")).get();
+    expect(user).toMatchObject({ username: "ready.user", status: "active", locale: "ja" });
     expect(user?.emailVerifiedAt).toBeTruthy();
-    expect(database.select().from(notifications).where(eq(notifications.eventReference, `WELCOME-${user!.id}`)).get()?.title).toBe("Welcome to CITIZAVREXO");
-    expect(() => verifyRegisteredEmail(verificationToken, "ready@example.test")).toThrow("invalid or expired");
+    expect(database.select().from(accounts).where(eq(accounts.userId, user!.id)).get()).toMatchObject({ number: expect.stringMatching(/^\d{10}$/), currency: "JPY" });
+    expect(database.select().from(authenticationTokens).where(eq(authenticationTokens.userId, user!.id)).all()).toHaveLength(0);
+    expect(database.select().from(userProfiles).where(eq(userProfiles.userId, user!.id)).get()).toBeUndefined();
+    expect(database.select().from(sessions).where(eq(sessions.userId, user!.id)).all()).toHaveLength(1);
+    expect(await getAuthenticatedUser()).toMatchObject({ id: user!.id, email: "ready@example.test" });
+    expect(messages).toHaveLength(1);
+    expect(messages[0].text).not.toContain("/verify-email");
+    expect(messages[0].text).not.toContain("token=");
+
+    const { loginUser } = await import("./auth-service");
     await expect(loginUser({ email: "READY.USER", password: "ReadyPassword!2026", persistent: false })).resolves.toBeUndefined();
   });
 
@@ -141,23 +134,20 @@ describe("email-backed authentication", () => {
     expect(database.select().from(users).where(eq(users.username, "shared.user")).all()).toHaveLength(1);
   });
 
-  it("preserves a pending account after uncertain delivery and rotates its verification link", async () => {
-    const { registerUser, requestEmailVerification, verifyRegisteredEmail } = await import("./auth-service");
+  it("keeps an active authenticated account when welcome delivery is unavailable", async () => {
+    const { registerUser } = await import("./auth-service");
+    const { getAuthenticatedUser } = await import("./session-service");
     const email = "delivery-independent@example.test";
     const failedTransport = { send: vi.fn(async () => { throw new Error("provider unavailable"); }) };
-    await expect(registerUser({ name: "Delivery Independent", username: "delivery.independent", email, password: "DeliveryPassword!2026", pin: "2468", locale: "en", currency: "USD" }, undefined, failedTransport)).rejects.toThrow("account remains pending");
+    await expect(registerUser({ name: "Delivery Independent", username: "delivery.independent", email, password: "DeliveryPassword!2026", pin: "2468", locale: "en", currency: "USD" }, undefined, failedTransport)).resolves.toBeUndefined();
 
     const user = database.select().from(users).where(eq(users.email, email)).get()!;
-    const originalToken = database.select().from(authenticationTokens).where(eq(authenticationTokens.userId, user.id)).get()!;
-    expect(user).toMatchObject({ status: "pending", emailVerifiedAt: null });
+    expect(user).toMatchObject({ status: "active" });
+    expect(user.emailVerifiedAt).toBeTruthy();
+    expect(database.select().from(authenticationTokens).where(eq(authenticationTokens.userId, user.id)).all()).toHaveLength(0);
+    expect(database.select().from(sessions).where(eq(sessions.userId, user.id)).all()).toHaveLength(1);
+    expect(await getAuthenticatedUser()).toMatchObject({ id: user.id });
     expect(database.select().from(emailOutbox).where(eq(emailOutbox.recipient, email)).get()).toMatchObject({ status: "failed" });
-
-    const { messages, transport } = captureTransport();
-    await requestEmailVerification(email, transport);
-    expect(messages).toHaveLength(1);
-    expect(database.select().from(authenticationTokens).where(eq(authenticationTokens.id, originalToken.id)).get()?.usedAt).toBeTruthy();
-    expect(() => verifyRegisteredEmail(actionTokenFrom(messages[0]), email)).not.toThrow();
-    expect(database.select().from(users).where(eq(users.id, user.id)).get()).toMatchObject({ status: "active" });
   });
 
   it("rotates recovery links, resets a password once, and revokes sessions", async () => {

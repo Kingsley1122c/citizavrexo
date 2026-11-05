@@ -30,10 +30,9 @@ export async function registerAction(_: AuthState, formData: FormData): Promise<
   if (!parsed.success) return { error: "Use a valid name, username, email, password, and exactly 4-digit transaction PIN." };
   if (parsed.data.password !== parsed.data.passwordConfirmation) return { error: "Passwords do not match." };
   if (parsed.data.pin !== parsed.data.pinConfirmation) return { error: "Transaction PINs do not match." };
-  if (!isTransactionalEmailConfigured()) return { error: "Registration cannot currently be completed because email verification delivery is unavailable. No account was created." };
   if (!consumeAuthRateLimit("register", parsed.data.email)) return { error: "Too many attempts. Please try again later." };
-  try { await registerUser({ name: parsed.data.name, username: parsed.data.username, email: parsed.data.email, password: parsed.data.password, pin: parsed.data.pin, locale: parsed.data.locale, currency: parsed.data.currency }, await requestMetadata()); } catch { return { error: "We couldn't confirm verification delivery. If your account is pending, request a new verification link." }; }
-  return { success: "Verification email accepted for delivery. Check your inbox to continue." };
+  try { await registerUser({ name: parsed.data.name, username: parsed.data.username, email: parsed.data.email, password: parsed.data.password, pin: parsed.data.pin, locale: parsed.data.locale, currency: parsed.data.currency }, await requestMetadata()); } catch { return { error: "We couldn't create your account. Check your details and try again." }; }
+  redirect("/app");
 }
 
 export async function resendVerificationAction(formData: FormData): Promise<void> {
